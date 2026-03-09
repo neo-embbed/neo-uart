@@ -3,6 +3,19 @@ const state = {
   terminalLines: [],
 };
 
+const API_BASE = (() => {
+  const customBase = window.NEO_API_BASE;
+  if (typeof customBase === "string" && customBase.trim()) {
+    return customBase.replace(/\/+$/, "");
+  }
+
+  if (window.location.protocol === "file:") {
+    return "http://127.0.0.1:8000";
+  }
+
+  return window.location.port === "8000" ? "" : "http://127.0.0.1:8000";
+})();
+
 const el = {
   healthBadge: document.getElementById("healthBadge"),
   tabs: document.querySelectorAll(".tab"),
@@ -37,7 +50,7 @@ function setupTabs() {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(path, {
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
