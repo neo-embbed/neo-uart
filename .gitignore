@@ -1,0 +1,6 @@
+.venv/
+.virtualenv-app-data/
+.tmp/
+__pycache__/
+*.pyc
+data/monitor_cards.json

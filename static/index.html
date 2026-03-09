@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neo UART Assistant</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-shape bg-a"></div>
+  <div class="bg-shape bg-b"></div>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Neo UART Assistant</h1>
+        <p>by USST-OECE 908 LAB</p>
+      </div>
+      <div id="healthBadge" class="badge">API Checking...</div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="serial">串口助手</button>
+      <button class="tab" data-tab="cards">监测卡片</button>
+      <button class="tab" data-tab="settings">系统设置</button>
+    </nav>
+
+    <section id="serial" class="tab-page active">
+      <div class="panel controls">
+        <div class="field">
+          <label for="portSelect">串口</label>
+          <select id="portSelect"></select>
+        </div>
+        <div class="field">
+          <label for="baudrate">波特率</label>
+          <select id="baudrate">
+            <option>9600</option>
+            <option>57600</option>
+            <option selected>115200</option>
+            <option>230400</option>
+            <option>921600</option>
+          </select>
+        </div>
+        <div class="buttons">
+          <button id="refreshPortsBtn">刷新串口</button>
+          <button id="connectBtn" class="btn-primary">连接</button>
+          <button id="disconnectBtn">断开</button>
+        </div>
+        <div id="serialStatus" class="status">未连接</div>
+      </div>
+
+      <div class="panel terminal-panel">
+        <div class="panel-title">通信日志</div>
+        <div id="terminal" class="terminal"></div>
+      </div>
+
+      <div class="panel send-panel">
+        <div class="field">
+          <label for="sendMode">发送模式</label>
+          <select id="sendMode">
+            <option value="text" selected>Text</option>
+            <option value="hex">Hex</option>
+          </select>
+        </div>
+        <label class="checkbox-row">
+          <input id="appendNewline" type="checkbox" />
+          <span>发送 Text 时自动追加换行</span>
+        </label>
+        <textarea id="sendInput" placeholder="输入要发送的数据..."></textarea>
+        <div class="buttons">
+          <button id="clearTerminalBtn">清空日志</button>
+          <button id="sendBtn" class="btn-primary">发送</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="cards" class="tab-page">
+      <div class="panel">
+        <div class="panel-title">新增监测卡片</div>
+        <div class="card-form">
+          <input id="cardName" placeholder="卡片名称，例如：温度报警" />
+          <input id="cardPattern" placeholder="匹配规则（正则或关键字）" />
+          <input id="cardDescription" placeholder="描述（可选）" />
+          <button id="createCardBtn" class="btn-primary">创建卡片</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">已配置卡片</div>
+        <div id="cardsList" class="cards-grid"></div>
+      </div>
+    </section>
+
+    <section id="settings" class="tab-page">
+      <div class="panel">
+        <div class="panel-title">后续扩展预留</div>
+        <p>可在该页面加入协议模板、自动化脚本、设备配置管理、日志导出策略等全局能力。</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
