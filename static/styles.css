@@ -249,7 +249,7 @@ button {
 
 .card-form {
   display: grid;
-  grid-template-columns: 1.2fr 1.3fr 1fr auto;
+  grid-template-columns: 1.2fr 1.3fr 0.9fr 90px auto;
   gap: 8px;
 }
 
@@ -270,6 +270,46 @@ button {
   margin: 0 0 6px;
 }
 
+.metric-card {
+  --card-accent: #0e7a68;
+  display: grid;
+  gap: 8px;
+  min-height: 250px;
+  border: 1px solid color-mix(in srgb, var(--card-accent), #ced8e5 70%);
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--card-accent), #ffffff 88%), #f7fbff 60%);
+}
+
+.metric-title {
+  margin: 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1d2b3a;
+}
+
+.metric-value {
+  text-align: center;
+  font-size: clamp(42px, 6vw, 68px);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  color: var(--card-accent);
+}
+
+.metric-unit {
+  font-size: 0.34em;
+  font-weight: 700;
+  margin-left: 0.18em;
+  opacity: 0.9;
+}
+
+.metric-foot {
+  text-align: center;
+  font-size: 12px;
+  color: var(--subtext);
+}
+
 .card-meta {
   color: var(--subtext);
   font-size: 13px;
@@ -279,6 +319,23 @@ button {
 .card-actions {
   display: flex;
   gap: 6px;
+}
+
+.card-actions-metric {
+  margin-top: auto;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.card-form input[type="color"] {
+  width: 100%;
+  min-height: 42px;
+  padding: 4px;
+  border: 1px solid #b6c5d7;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
 }
 
 .btn-danger {

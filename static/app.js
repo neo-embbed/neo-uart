@@ -1,6 +1,8 @@
 const state = {
   lastMessageId: 0,
   terminalLines: [],
+  cards: [],
+  cardRuntimeById: {},
 };
 
 const API_BASE = (() => {
@@ -8,11 +10,9 @@ const API_BASE = (() => {
   if (typeof customBase === "string" && customBase.trim()) {
     return customBase.replace(/\/+$/, "");
   }
-
   if (window.location.protocol === "file:") {
     return "http://127.0.0.1:8000";
   }
-
   return window.location.port === "8000" ? "" : "http://127.0.0.1:8000";
 })();
 
@@ -34,7 +34,8 @@ const el = {
   clearTerminalBtn: document.getElementById("clearTerminalBtn"),
   cardName: document.getElementById("cardName"),
   cardPattern: document.getElementById("cardPattern"),
-  cardDescription: document.getElementById("cardDescription"),
+  cardUnit: document.getElementById("cardUnit"),
+  cardColor: document.getElementById("cardColor"),
   createCardBtn: document.getElementById("createCardBtn"),
   cardsList: document.getElementById("cardsList"),
 };
@@ -62,6 +63,15 @@ async function api(path, options = {}) {
   return contentType.includes("application/json") ? res.json() : {};
 }
 
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function addLocalLine(direction, content) {
   const ts = new Date().toISOString();
   state.terminalLines.push({ id: Date.now(), ts, direction, content });
@@ -80,15 +90,6 @@ function renderTerminal() {
     .join("");
   el.terminal.innerHTML = lines;
   el.terminal.scrollTop = el.terminal.scrollHeight;
-}
-
-function escapeHtml(text) {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }
 
 async function checkHealth() {
@@ -170,6 +171,110 @@ async function sendPayload() {
   el.sendInput.value = "";
 }
 
+function cardTemplate(item, runtime) {
+  const valueText = runtime?.matched ? String(runtime.latest_value) : "--";
+  const unitText = item.unit ? ` ${item.unit}` : "";
+  const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--";
+  const patternError = runtime?.pattern_error
+    ? `<div class="card-meta">Pattern Error: ${escapeHtml(runtime.pattern_error)}</div>`
+    : "";
+
+  return `<article class="card-item metric-card" style="--card-accent:${escapeHtml(item.color || "#0e7a68")};">
+    <h4 class="metric-title">${escapeHtml(item.name)}</h4>
+    <div class="metric-value">${escapeHtml(valueText)}<span class="metric-unit">${escapeHtml(unitText)}</span></div>
+    <div class="metric-foot">更新时间 ${runtimeAt}</div>
+    <div class="card-meta">规则: ${escapeHtml(item.pattern)}</div>
+    ${patternError}
+    <div class="card-actions card-actions-metric">
+      <button data-action="toggle" data-id="${item.id}">${item.enabled ? "禁用" : "启用"}</button>
+      <button class="btn-danger" data-action="delete" data-id="${item.id}">删除</button>
+    </div>
+  </article>`;
+}
+
+function renderCards() {
+  if (!state.cards.length) {
+    el.cardsList.innerHTML = "<p>暂无卡片，可先创建匹配规则。</p>";
+    return;
+  }
+  el.cardsList.innerHTML = state.cards
+    .map((item) => cardTemplate(item, state.cardRuntimeById[item.id]))
+    .join("");
+}
+
+async function loadCards() {
+  const data = await api("/api/cards");
+  state.cards = data.items || [];
+  renderCards();
+}
+
+async function refreshCardRuntime() {
+  if (!state.cards.length) {
+    state.cardRuntimeById = {};
+    renderCards();
+    return;
+  }
+  const data = await api("/api/cards/runtime");
+  const runtimeItems = data.items || [];
+  state.cardRuntimeById = Object.fromEntries(runtimeItems.map((item) => [item.card_id, item]));
+  renderCards();
+}
+
+async function createCard() {
+  const name = el.cardName.value.trim();
+  const pattern = el.cardPattern.value.trim();
+  const unit = el.cardUnit.value.trim();
+  const color = el.cardColor.value || "#0e7a68";
+
+  if (!name || !pattern) {
+    alert("卡片名称和匹配规则不能为空");
+    return;
+  }
+
+  await api("/api/cards", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      pattern,
+      unit,
+      color,
+      enabled: true,
+    }),
+  });
+
+  el.cardName.value = "";
+  el.cardPattern.value = "";
+  el.cardUnit.value = "";
+  el.cardColor.value = "#0e7a68";
+  await loadCards();
+  await refreshCardRuntime();
+}
+
+async function onCardsListClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const action = target.dataset.action;
+  const id = Number(target.dataset.id || 0);
+  if (!action || !id) return;
+
+  if (action === "delete") {
+    await api(`/api/cards/${id}`, { method: "DELETE" });
+    await loadCards();
+    await refreshCardRuntime();
+    return;
+  }
+
+  if (action === "toggle") {
+    const enabled = target.textContent === "启用";
+    await api(`/api/cards/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    });
+    await loadCards();
+    await refreshCardRuntime();
+  }
+}
+
 async function pollMessages() {
   try {
     const data = await api(`/api/serial/messages?after_id=${state.lastMessageId}&limit=200`);
@@ -183,78 +288,9 @@ async function pollMessages() {
       state.terminalLines = state.terminalLines.slice(-3000);
     }
     renderTerminal();
+    await refreshCardRuntime();
   } catch (err) {
     addLocalLine("sys", `轮询失败: ${err.message || err}`);
-  }
-}
-
-function cardTemplate(item) {
-  const enabledText = item.enabled ? "已启用" : "已禁用";
-  return `<article class="card-item">
-    <h4>${escapeHtml(item.name)}</h4>
-    <div class="card-meta">${enabledText}</div>
-    <div class="card-meta">规则: ${escapeHtml(item.pattern)}</div>
-    <div class="card-meta">${escapeHtml(item.description || "")}</div>
-    <div class="card-actions">
-      <button data-action="toggle" data-id="${item.id}">${item.enabled ? "禁用" : "启用"}</button>
-      <button class="btn-danger" data-action="delete" data-id="${item.id}">删除</button>
-    </div>
-  </article>`;
-}
-
-async function loadCards() {
-  const data = await api("/api/cards");
-  const items = data.items || [];
-  if (!items.length) {
-    el.cardsList.innerHTML = "<p>暂无卡片，可先创建基础匹配规则。</p>";
-    return;
-  }
-  el.cardsList.innerHTML = items.map(cardTemplate).join("");
-}
-
-async function createCard() {
-  const name = el.cardName.value.trim();
-  const pattern = el.cardPattern.value.trim();
-  const description = el.cardDescription.value.trim();
-  if (!name || !pattern) {
-    alert("卡片名称和匹配规则不能为空");
-    return;
-  }
-  await api("/api/cards", {
-    method: "POST",
-    body: JSON.stringify({
-      name,
-      pattern,
-      description,
-      enabled: true,
-    }),
-  });
-  el.cardName.value = "";
-  el.cardPattern.value = "";
-  el.cardDescription.value = "";
-  await loadCards();
-}
-
-async function onCardsListClick(event) {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-  const action = target.dataset.action;
-  const id = Number(target.dataset.id || 0);
-  if (!action || !id) return;
-
-  if (action === "delete") {
-    await api(`/api/cards/${id}`, { method: "DELETE" });
-    await loadCards();
-    return;
-  }
-
-  if (action === "toggle") {
-    const enabled = target.textContent === "启用";
-    await api(`/api/cards/${id}`, {
-      method: "PUT",
-      body: JSON.stringify({ enabled }),
-    });
-    await loadCards();
   }
 }
 
@@ -280,8 +316,10 @@ async function init() {
   setupTabs();
   bindEvents();
   await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards()]);
+  await refreshCardRuntime();
   setInterval(() => pollMessages(), 500);
   setInterval(() => refreshSerialStatus().catch(handleError), 2000);
+  setInterval(() => refreshCardRuntime().catch(handleError), 1000);
 }
 
 init().catch(handleError);

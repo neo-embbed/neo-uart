@@ -108,6 +108,14 @@ def list_cards() -> dict:
     return {"items": [c.model_dump(mode="json") for c in items]}
 
 
+@app.get("/api/cards/runtime")
+def list_card_runtime() -> dict:
+    cards = card_service.list_cards()
+    messages = serial_service.get_messages(after_id=0, limit=5000)
+    items = card_service.build_runtime_status(cards, messages)
+    return {"items": [i.model_dump(mode="json") for i in items]}
+
+
 @app.post("/api/cards")
 def create_card(req: CardCreateRequest) -> dict:
     card = card_service.create_card(req)
