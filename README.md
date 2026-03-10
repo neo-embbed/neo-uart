@@ -108,4 +108,4 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ## 5. 流程图文档
 
 详细 Mermaid 流程图见：
-- [docs/流程图.md](docs/流程图.md)
+- [docs/流程图.md](docs/system_flowchart.md)
