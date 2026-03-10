@@ -257,6 +257,9 @@ async function onCardsListClick(event) {
   const id = Number(target.dataset.id || 0);
   if (!action || !id) return;
 
+  event.preventDefault();
+  event.stopPropagation();
+
   if (action === "delete") {
     await api(`/api/cards/${id}`, { method: "DELETE" });
     await loadCards();
