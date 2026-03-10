@@ -3,6 +3,27 @@ const state = {
   terminalLines: [],
   cards: [],
   cardRuntimeById: {},
+  settings: null,
+};
+
+const SETTINGS_KEY = "neo_uart_settings_v1";
+const FONT_FAMILY_OPTIONS = new Set([
+  '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
+  '"Cascadia Code", Consolas, monospace',
+  'Consolas, "Cascadia Code", monospace',
+  '"Source Code Pro", "Cascadia Code", Consolas, monospace',
+  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+]);
+const DEFAULT_SETTINGS = {
+  terminalColors: {
+    letter: "#d8e8fb",
+    digit: "#f4c780",
+    punct: "#9de4b8",
+  },
+  terminalFont: {
+    family: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
+    size: 13,
+  },
 };
 
 const API_BASE = (() => {
@@ -38,6 +59,11 @@ const el = {
   cardColor: document.getElementById("cardColor"),
   createCardBtn: document.getElementById("createCardBtn"),
   cardsList: document.getElementById("cardsList"),
+  colorLetter: document.getElementById("colorLetter"),
+  colorDigit: document.getElementById("colorDigit"),
+  colorPunct: document.getElementById("colorPunct"),
+  fontFamily: document.getElementById("fontFamily"),
+  fontSize: document.getElementById("fontSize"),
 };
 
 function setupTabs() {
@@ -72,9 +98,118 @@ function escapeHtml(text) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizeHexColor(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return /^#[0-9a-fA-F]{6}$/.test(trimmed) ? trimmed : fallback;
+}
+
+function normalizeFontFamily(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  return FONT_FAMILY_OPTIONS.has(value) ? value : fallback;
+}
+
+function normalizeFontSize(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(24, Math.max(10, parsed));
+}
+
+function loadSettings() {
+  if (!window.localStorage) {
+    return {
+      terminalColors: { ...DEFAULT_SETTINGS.terminalColors },
+      terminalFont: { ...DEFAULT_SETTINGS.terminalFont },
+    };
+  }
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) {
+      return {
+        terminalColors: { ...DEFAULT_SETTINGS.terminalColors },
+        terminalFont: { ...DEFAULT_SETTINGS.terminalFont },
+      };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      terminalColors: {
+        letter: normalizeHexColor(parsed?.terminalColors?.letter, DEFAULT_SETTINGS.terminalColors.letter),
+        digit: normalizeHexColor(parsed?.terminalColors?.digit, DEFAULT_SETTINGS.terminalColors.digit),
+        punct: normalizeHexColor(parsed?.terminalColors?.punct, DEFAULT_SETTINGS.terminalColors.punct),
+      },
+      terminalFont: {
+        family: normalizeFontFamily(parsed?.terminalFont?.family, DEFAULT_SETTINGS.terminalFont.family),
+        size: normalizeFontSize(parsed?.terminalFont?.size, DEFAULT_SETTINGS.terminalFont.size),
+      },
+    };
+  } catch {
+    return {
+      terminalColors: { ...DEFAULT_SETTINGS.terminalColors },
+      terminalFont: { ...DEFAULT_SETTINGS.terminalFont },
+    };
+  }
+}
+
+function saveSettings(settings) {
+  if (!window.localStorage) return;
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function applySettings(settings) {
+  if (!settings) return;
+  const root = document.documentElement;
+  root.style.setProperty("--term-letter", settings.terminalColors.letter);
+  root.style.setProperty("--term-digit", settings.terminalColors.digit);
+  root.style.setProperty("--term-punct", settings.terminalColors.punct);
+  root.style.setProperty("--term-font", settings.terminalFont.family);
+  root.style.setProperty("--term-font-size", `${settings.terminalFont.size}px`);
+
+  if (el.colorLetter) el.colorLetter.value = settings.terminalColors.letter;
+  if (el.colorDigit) el.colorDigit.value = settings.terminalColors.digit;
+  if (el.colorPunct) el.colorPunct.value = settings.terminalColors.punct;
+  if (el.fontFamily) el.fontFamily.value = settings.terminalFont.family;
+  if (el.fontSize) el.fontSize.value = String(settings.terminalFont.size);
+}
+
+function classifyChar(ch) {
+  if (/[A-Za-z]/.test(ch)) return "letter";
+  if (/[0-9]/.test(ch)) return "digit";
+  if (/[\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E]/.test(ch)) return "punct";
+  return "";
+}
+
+function formatTerminalContent(text) {
+  const input = String(text ?? "");
+  let result = "";
+  let buffer = "";
+  let currentType = "";
+
+  const flush = () => {
+    if (!buffer) return;
+    if (!currentType) {
+      result += escapeHtml(buffer);
+    } else {
+      result += `<span class="token-${currentType}">${escapeHtml(buffer)}</span>`;
+    }
+    buffer = "";
+  };
+
+  for (const ch of input) {
+    const type = classifyChar(ch);
+    if (type !== currentType) {
+      flush();
+      currentType = type;
+    }
+    buffer += ch;
+  }
+  flush();
+  return result;
+}
+
 function addLocalLine(direction, content) {
   const ts = new Date().toISOString();
-  state.terminalLines.push({ id: Date.now(), ts, direction, content });
+  //state.terminalLines.push({ id: Date.now(), ts, direction, content });
+  state.terminalLines.push({content });
   if (state.terminalLines.length > 3000) state.terminalLines.shift();
   renderTerminal();
 }
@@ -82,10 +217,9 @@ function addLocalLine(direction, content) {
 function renderTerminal() {
   const lines = state.terminalLines
     .map((line) => {
-      return `<div class="line line-${line.direction}">
-        <span class="ts">[${new Date(line.ts).toLocaleTimeString()}]</span>
-        <span class="content">${escapeHtml(line.content)}</span>
-      </div>`;
+      return `<div class="line line-${line.direction}"><span class="content">${formatTerminalContent(
+        line.content
+      )}</span></div>`;
     })
     .join("");
   el.terminal.innerHTML = lines;
@@ -125,11 +259,11 @@ async function refreshPorts() {
 async function refreshSerialStatus() {
   const data = await api("/api/serial/status");
   if (data.connected) {
-    el.serialStatus.textContent = `已连接 ${data.port} @ ${data.baudrate}`;
-    el.serialStatus.style.color = "#21693f";
+    el.serialStatus.textContent = `串口已连接 ${data.port} @ ${data.baudrate}`;
+    el.serialStatus.style.background = "#205d52";
   } else {
-    el.serialStatus.textContent = "未连接";
-    el.serialStatus.style.color = "#8f341f";
+    el.serialStatus.textContent = "串口未连接";
+    el.serialStatus.style.background = "#8f341f";
   }
 }
 
@@ -258,8 +392,8 @@ async function onCardsListClick(event) {
   const id = Number(target.dataset.id || 0);
   if (!action || !id) return;
 
-  event.preventDefault();
-  event.stopPropagation();
+  //event.preventDefault();
+  //event.stopPropagation();
 
   if (action === "delete") {
     await api(`/api/cards/${id}`, { method: "DELETE" });
@@ -309,6 +443,39 @@ function bindEvents() {
   });
   el.createCardBtn.addEventListener("click", () => createCard().catch(handleError));
   el.cardsList.addEventListener("click", (ev) => onCardsListClick(ev).catch(handleError));
+
+  const onColorChange = () => {
+    state.settings = {
+      ...state.settings,
+      terminalColors: {
+        letter: normalizeHexColor(el.colorLetter?.value, DEFAULT_SETTINGS.terminalColors.letter),
+        digit: normalizeHexColor(el.colorDigit?.value, DEFAULT_SETTINGS.terminalColors.digit),
+        punct: normalizeHexColor(el.colorPunct?.value, DEFAULT_SETTINGS.terminalColors.punct),
+      },
+    };
+    applySettings(state.settings);
+    saveSettings(state.settings);
+    renderTerminal();
+  };
+
+  const onFontChange = () => {
+    state.settings = {
+      ...state.settings,
+      terminalFont: {
+        family: normalizeFontFamily(el.fontFamily?.value, DEFAULT_SETTINGS.terminalFont.family),
+        size: normalizeFontSize(el.fontSize?.value, DEFAULT_SETTINGS.terminalFont.size),
+      },
+    };
+    applySettings(state.settings);
+    saveSettings(state.settings);
+    renderTerminal();
+  };
+
+  if (el.colorLetter) el.colorLetter.addEventListener("input", onColorChange);
+  if (el.colorDigit) el.colorDigit.addEventListener("input", onColorChange);
+  if (el.colorPunct) el.colorPunct.addEventListener("input", onColorChange);
+  if (el.fontFamily) el.fontFamily.addEventListener("change", onFontChange);
+  if (el.fontSize) el.fontSize.addEventListener("input", onFontChange);
 }
 
 function handleError(err) {
@@ -317,6 +484,8 @@ function handleError(err) {
 }
 
 async function init() {
+  state.settings = loadSettings();
+  applySettings(state.settings);
   setupTabs();
   bindEvents();
   await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards()]);
