@@ -37,6 +37,25 @@
           <div class="panel-title">已配置卡片</div>
           <div id="cardsList" class="cards-grid"></div>
         </div>
+        <div class="panel">
+          <div class="panel-title">卡片配置管理</div>
+          <div class="preset-grid">
+            <div class="field">
+              <label for="presetName">保存名称</label>
+              <input id="presetName" placeholder="例如：默认配置" />
+            </div>
+            <div class="buttons">
+              <button id="savePresetBtn" class="btn-primary">保存配置</button>
+            </div>
+            <div class="field">
+              <label for="presetSelect">已保存配置</label>
+              <select id="presetSelect"></select>
+            </div>
+            <div class="buttons">
+              <button id="loadPresetBtn">载入配置</button>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="serial-column">
@@ -116,6 +135,10 @@
                     <label for="colorPunct">标点颜色</label>
                     <input id="colorPunct" type="color" value="#9de4b8" />
                   </div>
+                  <div class="field">
+                    <label for="colorTx">Tx报文颜色</label>
+                    <input id="colorTx" type="color" value="#9de4b8" />
+                  </div>
                 </div>
                 <div class="settings-grid">
                   <div class="field">
@@ -142,6 +165,12 @@
                   </div>
                   <div class="line">
                     <span class="token-letter">Temp</span><span class="token-punct">=</span><span class="token-digit">36</span><span class="token-punct">.</span><span class="token-digit">5</span><span class="token-letter">C</span>
+                  </div>
+                  <div class="line line-tx">
+                    <span class="content">TX&gt;&gt; AT+RST</span>
+                  </div>
+                  <div class="line line-sys">
+                    <span class="content">系统消息: 已断开连接</span>
                   </div>
                 </div>
               </div>

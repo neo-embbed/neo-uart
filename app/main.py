@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .card_service import CardService
-from .models import CardCreateRequest, CardUpdateRequest, ConnectRequest, SendRequest
+from .models import CardCreateRequest, CardPresetRequest, CardUpdateRequest, ConnectRequest, SendRequest
 from .serial_service import SerialService
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -16,8 +16,13 @@ DATA_FILE = BASE_DIR / "data" / "monitor_cards.json"
 app = FastAPI(title="Neo UART Assistant API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -108,6 +113,12 @@ def list_cards() -> dict:
     return {"items": [c.model_dump(mode="json") for c in items]}
 
 
+@app.get("/api/cards/presets")
+def list_card_presets() -> dict:
+    items = card_service.list_presets()
+    return {"items": items}
+
+
 @app.get("/api/cards/runtime")
 def list_card_runtime() -> dict:
     cards = card_service.list_cards()
@@ -120,6 +131,21 @@ def list_card_runtime() -> dict:
 def create_card(req: CardCreateRequest) -> dict:
     card = card_service.create_card(req)
     return card.model_dump(mode="json")
+
+
+@app.post("/api/cards/presets")
+def save_card_preset(req: CardPresetRequest) -> dict[str, str]:
+    card_service.save_preset(req.name)
+    return {"message": "saved"}
+
+
+@app.post("/api/cards/presets/load")
+def load_card_preset(req: CardPresetRequest) -> dict[str, str]:
+    try:
+        card_service.load_preset(req.name)
+        return {"message": "loaded"}
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.put("/api/cards/{card_id}")

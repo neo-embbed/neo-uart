@@ -19,6 +19,7 @@ const DEFAULT_SETTINGS = {
     letter: "#d8e8fb",
     digit: "#f4c780",
     punct: "#9de4b8",
+    tx: "#9de4b8",
   },
   terminalFont: {
     family: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
@@ -59,9 +60,14 @@ const el = {
   cardColor: document.getElementById("cardColor"),
   createCardBtn: document.getElementById("createCardBtn"),
   cardsList: document.getElementById("cardsList"),
+  presetName: document.getElementById("presetName"),
+  savePresetBtn: document.getElementById("savePresetBtn"),
+  presetSelect: document.getElementById("presetSelect"),
+  loadPresetBtn: document.getElementById("loadPresetBtn"),
   colorLetter: document.getElementById("colorLetter"),
   colorDigit: document.getElementById("colorDigit"),
   colorPunct: document.getElementById("colorPunct"),
+  colorTx: document.getElementById("colorTx"),
   fontFamily: document.getElementById("fontFamily"),
   fontSize: document.getElementById("fontSize"),
 };
@@ -136,6 +142,7 @@ function loadSettings() {
         letter: normalizeHexColor(parsed?.terminalColors?.letter, DEFAULT_SETTINGS.terminalColors.letter),
         digit: normalizeHexColor(parsed?.terminalColors?.digit, DEFAULT_SETTINGS.terminalColors.digit),
         punct: normalizeHexColor(parsed?.terminalColors?.punct, DEFAULT_SETTINGS.terminalColors.punct),
+        tx: normalizeHexColor(parsed?.terminalColors?.tx, DEFAULT_SETTINGS.terminalColors.tx),
       },
       terminalFont: {
         family: normalizeFontFamily(parsed?.terminalFont?.family, DEFAULT_SETTINGS.terminalFont.family),
@@ -161,12 +168,14 @@ function applySettings(settings) {
   root.style.setProperty("--term-letter", settings.terminalColors.letter);
   root.style.setProperty("--term-digit", settings.terminalColors.digit);
   root.style.setProperty("--term-punct", settings.terminalColors.punct);
+  root.style.setProperty("--term-tx", settings.terminalColors.tx);
   root.style.setProperty("--term-font", settings.terminalFont.family);
   root.style.setProperty("--term-font-size", `${settings.terminalFont.size}px`);
 
   if (el.colorLetter) el.colorLetter.value = settings.terminalColors.letter;
   if (el.colorDigit) el.colorDigit.value = settings.terminalColors.digit;
   if (el.colorPunct) el.colorPunct.value = settings.terminalColors.punct;
+  if (el.colorTx) el.colorTx.value = settings.terminalColors.tx;
   if (el.fontFamily) el.fontFamily.value = settings.terminalFont.family;
   if (el.fontSize) el.fontSize.value = String(settings.terminalFont.size);
 }
@@ -217,9 +226,9 @@ function addLocalLine(direction, content) {
 function renderTerminal() {
   const lines = state.terminalLines
     .map((line) => {
-      return `<div class="line line-${line.direction}"><span class="content">${formatTerminalContent(
-        line.content
-      )}</span></div>`;
+      const content =
+        line.direction === "tx" ? escapeHtml(line.content) : formatTerminalContent(line.content);
+      return `<div class="line line-${line.direction}"><span class="content">${content}</span></div>`;
     })
     .join("");
   el.terminal.innerHTML = lines;
@@ -294,6 +303,7 @@ async function disconnectSerial() {
 async function sendPayload() {
   const payload = el.sendInput.value.trim();
   if (!payload) return;
+  const appendNewline = el.appendNewline.checked && el.sendMode.value === "text";
   await api("/api/serial/send", {
     method: "POST",
     body: JSON.stringify({
@@ -302,6 +312,7 @@ async function sendPayload() {
       append_newline: el.appendNewline.checked,
     }),
   });
+  addLocalLine("tx", appendNewline ? `${payload}\n` : payload);
   el.sendInput.value = "";
 }
 
@@ -342,6 +353,26 @@ async function loadCards() {
   renderCards();
 }
 
+async function loadPresets() {
+  if (!el.presetSelect) return;
+  const data = await api("/api/cards/presets");
+  const items = data.items || [];
+  el.presetSelect.innerHTML = "";
+  if (!items.length) {
+    const op = document.createElement("option");
+    op.value = "";
+    op.textContent = "暂无保存配置";
+    el.presetSelect.append(op);
+    return;
+  }
+  items.forEach((item) => {
+    const op = document.createElement("option");
+    op.value = item.name;
+    op.textContent = item.name;
+    el.presetSelect.append(op);
+  });
+}
+
 async function refreshCardRuntime() {
   if (!state.cards.length) {
     state.cardRuntimeById = {};
@@ -380,6 +411,30 @@ async function createCard() {
   el.cardPattern.value = "";
   el.cardUnit.value = "";
   el.cardColor.value = "#0e7a68";
+  await loadCards();
+  await refreshCardRuntime();
+}
+
+async function savePreset() {
+  const name = el.presetName?.value.trim() || "";
+  if (!name) {
+    alert("请输入配置名称");
+    return;
+  }
+  await api("/api/cards/presets", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+  await loadPresets();
+}
+
+async function loadPreset() {
+  const name = el.presetSelect?.value || "";
+  if (!name) return;
+  await api("/api/cards/presets/load", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
   await loadCards();
   await refreshCardRuntime();
 }
@@ -443,6 +498,12 @@ function bindEvents() {
   });
   el.createCardBtn.addEventListener("click", () => createCard().catch(handleError));
   el.cardsList.addEventListener("click", (ev) => onCardsListClick(ev).catch(handleError));
+  if (el.savePresetBtn) {
+    el.savePresetBtn.addEventListener("click", () => savePreset().catch(handleError));
+  }
+  if (el.loadPresetBtn) {
+    el.loadPresetBtn.addEventListener("click", () => loadPreset().catch(handleError));
+  }
 
   const onColorChange = () => {
     state.settings = {
@@ -451,6 +512,7 @@ function bindEvents() {
         letter: normalizeHexColor(el.colorLetter?.value, DEFAULT_SETTINGS.terminalColors.letter),
         digit: normalizeHexColor(el.colorDigit?.value, DEFAULT_SETTINGS.terminalColors.digit),
         punct: normalizeHexColor(el.colorPunct?.value, DEFAULT_SETTINGS.terminalColors.punct),
+        tx: normalizeHexColor(el.colorTx?.value, DEFAULT_SETTINGS.terminalColors.tx),
       },
     };
     applySettings(state.settings);
@@ -474,6 +536,7 @@ function bindEvents() {
   if (el.colorLetter) el.colorLetter.addEventListener("input", onColorChange);
   if (el.colorDigit) el.colorDigit.addEventListener("input", onColorChange);
   if (el.colorPunct) el.colorPunct.addEventListener("input", onColorChange);
+  if (el.colorTx) el.colorTx.addEventListener("input", onColorChange);
   if (el.fontFamily) el.fontFamily.addEventListener("change", onFontChange);
   if (el.fontSize) el.fontSize.addEventListener("input", onFontChange);
 }
@@ -488,7 +551,7 @@ async function init() {
   applySettings(state.settings);
   setupTabs();
   bindEvents();
-  await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards()]);
+  await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards(), loadPresets()]);
   await refreshCardRuntime();
   setInterval(() => pollMessages(), 500);
   setInterval(() => refreshSerialStatus().catch(handleError), 2000);

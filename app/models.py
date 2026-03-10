@@ -59,3 +59,7 @@ class CardRuntimeStatus(BaseModel):
     matched_at: Optional[datetime] = None
     source_message_id: Optional[int] = None
     pattern_error: str = ""
+
+
+class CardPresetRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=64)

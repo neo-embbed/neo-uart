@@ -14,6 +14,7 @@
   --term-letter: #d8e8fb;
   --term-digit: #f4c780;
   --term-punct: #9de4b8;
+  --term-tx: #9de4b8;
   --term-font: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
   --term-font-size: 13px;
   --shadow: 0 18px 45px rgba(23, 41, 58, 0.14);
@@ -300,6 +301,14 @@ button {
   color: #9de4b8;
 }
 
+.line-tx .content {
+  color: var(--term-tx);
+}
+
+.line-tx .content span {
+  color: inherit;
+}
+
 .line-sys {
   color: #f6c886;
 }
@@ -315,6 +324,17 @@ button {
   display: grid;
   grid-template-columns: 1.2fr 1.3fr 0.9fr 90px auto;
   gap: 8px;
+}
+
+.preset-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) auto;
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.preset-grid .buttons {
+  justify-content: flex-start;
 }
 
 .settings-grid {
@@ -445,6 +465,9 @@ button {
     grid-template-columns: 1fr;
   }
   .card-form {
+    grid-template-columns: 1fr;
+  }
+  .preset-grid {
     grid-template-columns: 1fr;
   }
   .settings-layout {
