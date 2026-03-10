@@ -1,9 +1,8 @@
-# Neo UART Assistant 流程图（现阶段）
+﻿# Neo UART Assistant 系统流程图（当前）
 
-为避免部分 Mermaid 渲染器中文编码问题，图内节点使用 ASCII 英文，文档说明保持中文。
+为避免部分 Mermaid 渲染器中文编码问题，图内节点使用 ASCII 英文，正文说明保持中文。
 
 ## 1. 系统总流程
-
 ```mermaid
 flowchart TD
     A[User starts app] --> B[FastAPI boot]
@@ -17,6 +16,7 @@ flowchart TD
     F --> F3[GET api serial status]
     F --> F4[GET api cards]
     F --> F5[GET api cards runtime]
+    F --> F6[GET api cards presets]
 
     F --> G[Start polling]
     G --> G1[500ms get serial messages]
@@ -57,7 +57,6 @@ flowchart TD
 ```
 
 ## 3. 卡片实时值计算流程
-
 ```mermaid
 flowchart TD
     A[GET api cards runtime] --> B[Load cards]
@@ -91,18 +90,22 @@ flowchart TD
     N --> O[Return runtime list]
 ```
 
-## 4. 创建卡片流程（单位与颜色）
-
+## 4. 卡片预设保存/载入流程
 ```mermaid
 flowchart TD
-    A[Input name pattern unit color] --> B[Click create card]
-    B --> C{Name and pattern valid}
-    C -- no --> C1[Show alert]
-    C -- yes --> D[POST api cards]
-    D --> E[Save into json file]
-    E --> F[GET api cards]
-    F --> G[GET api cards runtime]
-    G --> H[Render card title value unit color]
+    A[User input preset name] --> B[POST api cards presets]
+    B --> C[Load current cards]
+    C --> D[Upsert preset by name]
+    D --> E[Save monitor_cards.json]
+    E --> F[Return saved]
+
+    G[User select preset] --> H[POST api cards presets load]
+    H --> I[Find preset by name]
+    I --> J{Found}
+    J -- no --> J1[Return 404]
+    J -- yes --> K[Replace current cards]
+    K --> L[Save monitor_cards.json]
+    L --> M[Return loaded]
 ```
 
 ## 5. 前后端交互时序图
@@ -120,8 +123,19 @@ sequenceDiagram
     FE->>API: GET api serial ports
     FE->>API: GET api cards
     FE->>API: GET api cards runtime
+    FE->>API: GET api cards presets
     API->>CS: list_cards and build_runtime_status
     API-->>FE: Initial data
+
+    U->>FE: Save preset
+    FE->>API: POST api cards presets
+    API->>CS: save_preset
+    API-->>FE: saved
+
+    U->>FE: Load preset
+    FE->>API: POST api cards presets load
+    API->>CS: load_preset
+    API-->>FE: loaded
 
     U->>FE: Click connect
     FE->>API: POST api serial connect
