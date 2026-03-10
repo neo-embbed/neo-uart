@@ -186,8 +186,8 @@ function cardTemplate(item, runtime) {
     <div class="card-meta">规则: ${escapeHtml(item.pattern)}</div>
     ${patternError}
     <div class="card-actions card-actions-metric">
-      <button data-action="toggle" data-id="${item.id}">${item.enabled ? "禁用" : "启用"}</button>
-      <button class="btn-danger" data-action="delete" data-id="${item.id}">删除</button>
+      <button type="button" data-action="toggle" data-id="${item.id}">${item.enabled ? "禁用" : "启用"}</button>
+      <button type="button" class="btn-danger" data-action="delete" data-id="${item.id}">删除</button>
     </div>
   </article>`;
 }
@@ -253,6 +253,7 @@ async function createCard() {
 async function onCardsListClick(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
+
   const action = target.dataset.action;
   const id = Number(target.dataset.id || 0);
   if (!action || !id) return;

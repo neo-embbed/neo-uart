@@ -19,12 +19,12 @@
     </header>
 
     <nav class="tabs">
-      <button class="tab active" data-tab="serial">串口助手</button>
-      <button class="tab" data-tab="cards">监测卡片</button>
+      <button class="tab active" data-tab="cards">监测卡片</button>
+      <button class="tab" data-tab="serial">串口助手</button>
       <button class="tab" data-tab="settings">系统设置</button>
     </nav>
 
-    <section id="serial" class="tab-page active">
+    <section id="serial" class="tab-page">
       <div class="panel controls">
         <div class="field">
           <label for="portSelect">串口</label>
@@ -73,7 +73,7 @@
       </div>
     </section>
 
-    <section id="cards" class="tab-page">
+    <section id="cards" class="tab-page active">
       <div class="panel">
         <div class="panel-title">新增监测卡片</div>
         <div class="card-form">
@@ -81,7 +81,7 @@
           <input id="cardPattern" placeholder="匹配规则（正则或关键字）" />
           <input id="cardUnit" placeholder="单位（可选）" />
           <input id="cardColor" type="color" value="#0e7a68" title="卡片颜色" />
-          <button id="createCardBtn" class="btn-primary">创建卡片</button>
+          <button id="createCardBtn" type="button" class="btn-primary">创建卡片</button>
         </div>
       </div>
       <div class="panel">
