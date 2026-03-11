@@ -127,6 +127,15 @@ def list_card_runtime() -> dict:
     return {"items": [i.model_dump(mode="json") for i in items]}
 
 
+@app.get("/api/cards/runtime/batch")
+def list_card_runtime_batch(after_id: int = 0, limit: int = 1000) -> dict:
+    cards = card_service.list_cards()
+    messages = serial_service.get_messages(after_id=after_id, limit=limit)
+    items = card_service.build_runtime_series(cards, messages)
+    last_id = max((m.id for m in messages), default=after_id)
+    return {"items": items, "last_id": last_id}
+
+
 @app.post("/api/cards")
 def create_card(req: CardCreateRequest) -> dict:
     card = card_service.create_card(req)

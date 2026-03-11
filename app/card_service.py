@@ -154,6 +154,59 @@ class CardService:
 
         return statuses
 
+    def build_runtime_series(
+        self, cards: list[MonitorCard], messages: list[SerialMessage]
+    ) -> list[dict]:
+        rx_messages = [m for m in messages if m.direction == "rx"]
+        items: list[dict] = []
+        for card in cards:
+            series_values: list[str] = []
+            series_times: list[str] = []
+            if not card.enabled:
+                items.append(
+                    {
+                        "card_id": card.id,
+                        "values": series_values,
+                        "matched_at": series_times,
+                    }
+                )
+                continue
+
+            regex = None
+            regex_error = None
+            try:
+                regex = re.compile(card.pattern)
+            except re.error as exc:
+                regex_error = str(exc)
+
+            for message in rx_messages:
+                value_text = None
+                if regex:
+                    match = regex.search(message.content)
+                    if not match:
+                        continue
+                    value_text = self._extract_match_value(match)
+                else:
+                    if card.pattern and card.pattern in message.content:
+                        value_text = message.content.strip() or card.pattern
+                    else:
+                        continue
+                if value_text is None:
+                    continue
+                series_values.append(str(value_text))
+                series_times.append(message.ts.isoformat())
+
+            item = {
+                "card_id": card.id,
+                "values": series_values,
+                "matched_at": series_times,
+            }
+            if regex_error:
+                item["pattern_error"] = regex_error
+            items.append(item)
+
+        return items
+
     def _load_payload(self) -> dict:
         raw = self._data_file.read_text(encoding="utf-8-sig")
         data = json.loads(raw)

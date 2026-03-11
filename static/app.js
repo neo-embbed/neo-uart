@@ -1,11 +1,14 @@
 const state = {
   lastMessageId: 0,
+  lastChartMessageId: 0,
   terminalLines: [],
   cards: [],
   cardRuntimeById: {},
   settings: null,
   cardViewById: {},
   cardHistoryById: {},
+  cardPatternCache: {},
+  lastBackendTsMs: 0,
 };
 
 const SETTINGS_KEY = "neo_uart_settings_v1";
@@ -27,6 +30,7 @@ const DEFAULT_SETTINGS = {
     family: '"JetBrains Mono", "Cascadia Code", Consolas, monospace',
     size: 13,
   },
+  chartWindowSec: 10,
 };
 
 const API_BASE = (() => {
@@ -73,6 +77,7 @@ const el = {
   colorTx: document.getElementById("colorTx"),
   fontFamily: document.getElementById("fontFamily"),
   fontSize: document.getElementById("fontSize"),
+  chartWindow: document.getElementById("chartWindow"),
 };
 
 function setupTabs() {
@@ -124,11 +129,27 @@ function normalizeFontSize(value, fallback) {
   return Math.min(24, Math.max(10, parsed));
 }
 
+function parseTimestampMs(tsText) {
+  if (!tsText) return Date.now();
+  const text = String(tsText);
+  const hasTz = /[Zz]|[+-]\d{2}:\d{2}$/.test(text);
+  const iso = hasTz ? text : `${text}Z`;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : Date.now();
+}
+
+function normalizeChartWindow(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(120, Math.max(2, parsed));
+}
+
 function loadSettings() {
   if (!window.localStorage) {
     return {
       terminalColors: { ...DEFAULT_SETTINGS.terminalColors },
       terminalFont: { ...DEFAULT_SETTINGS.terminalFont },
+      chartWindowSec: DEFAULT_SETTINGS.chartWindowSec,
     };
   }
   try {
@@ -137,6 +158,7 @@ function loadSettings() {
       return {
         terminalColors: { ...DEFAULT_SETTINGS.terminalColors },
         terminalFont: { ...DEFAULT_SETTINGS.terminalFont },
+        chartWindowSec: DEFAULT_SETTINGS.chartWindowSec,
       };
     }
     const parsed = JSON.parse(raw);
@@ -151,11 +173,13 @@ function loadSettings() {
         family: normalizeFontFamily(parsed?.terminalFont?.family, DEFAULT_SETTINGS.terminalFont.family),
         size: normalizeFontSize(parsed?.terminalFont?.size, DEFAULT_SETTINGS.terminalFont.size),
       },
+      chartWindowSec: normalizeChartWindow(parsed?.chartWindowSec, DEFAULT_SETTINGS.chartWindowSec),
     };
   } catch {
     return {
       terminalColors: { ...DEFAULT_SETTINGS.terminalColors },
       terminalFont: { ...DEFAULT_SETTINGS.terminalFont },
+      chartWindowSec: DEFAULT_SETTINGS.chartWindowSec,
     };
   }
 }
@@ -181,6 +205,7 @@ function applySettings(settings) {
   if (el.colorTx) el.colorTx.value = settings.terminalColors.tx;
   if (el.fontFamily) el.fontFamily.value = settings.terminalFont.family;
   if (el.fontSize) el.fontSize.value = String(settings.terminalFont.size);
+  if (el.chartWindow) el.chartWindow.value = String(settings.chartWindowSec);
 }
 
 function classifyChar(ch) {
@@ -224,6 +249,17 @@ function addLocalLine(direction, content) {
   state.terminalLines.push({content });
   if (state.terminalLines.length > 3000) state.terminalLines.shift();
   renderTerminal();
+}
+
+function extractValueFromMatch(match) {
+  if (!match) return null;
+  if (match.length > 1) {
+    for (let i = 1; i < match.length; i += 1) {
+      const val = match[i];
+      if (val !== undefined && val !== "") return val;
+    }
+  }
+  return match[0] ?? null;
 }
 
 function renderTerminal() {
@@ -325,7 +361,7 @@ async function sendPayload() {
 function cardTemplate(item, runtime) {
   const valueText = runtime?.matched ? String(runtime.latest_value) : "--";
   const unitText = item.unit ? ` ${item.unit}` : "";
-  const runtimeAt = runtime?.matched_at ? new Date(`${runtime.matched_at}Z`).toLocaleTimeString() : "--:--:--";
+  const runtimeAt = runtime?.matched_at ? new Date(parseTimestampMs(runtime.matched_at)).toLocaleTimeString() : "--:--:--";
   //const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--"; 
   const patternError = runtime?.pattern_error
     ? `<div class="card-meta">Pattern Error: ${escapeHtml(runtime.pattern_error)}</div>`
@@ -371,9 +407,43 @@ function renderCards() {
     .join("");
 }
 
+function pushHistory(cardId, value, tsMs) {
+  const list = state.cardHistoryById[cardId] || [];
+  list.push({ t: tsMs, v: value });
+  const windowMs = (state.settings?.chartWindowSec || DEFAULT_SETTINGS.chartWindowSec) * 1000;
+  const refTime = state.lastBackendTsMs || tsMs;
+  const minTime = refTime - windowMs * 2;
+  while (list.length && list[0].t < minTime) {
+    list.shift();
+  }
+  state.cardHistoryById[cardId] = list;
+}
+
+async function pollCardSeries() {
+  if (!state.cards.length) return;
+  const data = await api(`/api/cards/runtime/batch?after_id=${state.lastChartMessageId}&limit=1000`);
+  const items = data.items || [];
+  items.forEach((item) => {
+    const values = item.values || [];
+    const times = item.matched_at || [];
+    for (let i = 0; i < values.length; i += 1) {
+      const num = Number.parseFloat(String(values[i]));
+      if (!Number.isFinite(num)) continue;
+      const tsMs = parseTimestampMs(times[i]);
+      if (tsMs > state.lastBackendTsMs) state.lastBackendTsMs = tsMs;
+      pushHistory(item.card_id, num, tsMs);
+    }
+  });
+  state.lastChartMessageId = Number(data.last_id || state.lastChartMessageId);
+  renderCards();
+}
+
 async function loadCards() {
   const data = await api("/api/cards");
   state.cards = data.items || [];
+  state.cardPatternCache = {};
+  state.cardHistoryById = {};
+  state.lastChartMessageId = 0;
   renderCards();
 }
 
@@ -416,10 +486,9 @@ function updateCardHistory(runtimeItems) {
     if (!item.matched) return;
     const value = Number.parseFloat(item.latest_value);
     if (!Number.isFinite(value)) return;
-    const list = state.cardHistoryById[item.card_id] || [];
-    list.push(value);
-    if (list.length > 60) list.shift();
-    state.cardHistoryById[item.card_id] = list;
+    const tsMs = parseTimestampMs(item.matched_at);
+    if (tsMs > state.lastBackendTsMs) state.lastBackendTsMs = tsMs;
+    pushHistory(item.card_id, value, tsMs);
   });
 }
 
@@ -432,22 +501,32 @@ function renderSparklineSvg(values) {
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="10">暂无数据</text>
     </svg>`;
   }
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const now = state.lastBackendTsMs || Date.now();
+  const windowMs = (state.settings?.chartWindowSec || DEFAULT_SETTINGS.chartWindowSec) * 1000;
+  const startTime = now - windowMs;
+  const clipped = values.filter((p) => p.t >= startTime);
+  if (!clipped.length) {
+    return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+      <line x1="0" y1="${height - 1}" x2="${width}" y2="${height - 1}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+      <text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="10">暂无数据</text>
+    </svg>`;
+  }
+  const min = Math.min(...clipped.map((p) => p.v));
+  const max = Math.max(...clipped.map((p) => p.v));
   const span = max - min || 1;
-  const step = width / Math.max(values.length - 1, 1);
-  const points = values
-    .map((v, idx) => {
-      const x = idx * step;
-      const y = height - ((v - min) / span) * (height - 6) - 3;
+  const points = clipped
+    .map((p) => {
+      const x = ((p.t - startTime) / windowMs) * width;
+      const y = height - ((p.v - min) / span) * (height - 6) - 3;
       return `${x.toFixed(2)},${y.toFixed(2)}`;
     })
     .join(" ");
+  const last = clipped[clipped.length - 1];
+  const lastX = ((last.t - startTime) / windowMs) * width;
+  const lastY = height - ((last.v - min) / span) * (height - 6) - 3;
   return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
     <polyline fill="none" stroke="var(--card-accent)" stroke-width="2" points="${points}" />
-    <circle cx="${((values.length - 1) * step).toFixed(2)}" cy="${(
-      height - ((values[values.length - 1] - min) / span) * (height - 6) - 3
-    ).toFixed(2)}" r="2.5" fill="var(--card-accent)" />
+    <circle cx="${lastX.toFixed(2)}" cy="${lastY.toFixed(2)}" r="2.5" fill="var(--card-accent)" />
   </svg>`;
 }
 
@@ -605,12 +684,23 @@ function bindEvents() {
     renderTerminal();
   };
 
+  const onChartWindowChange = () => {
+    state.settings = {
+      ...state.settings,
+      chartWindowSec: normalizeChartWindow(el.chartWindow?.value, DEFAULT_SETTINGS.chartWindowSec),
+    };
+    applySettings(state.settings);
+    saveSettings(state.settings);
+    renderCards();
+  };
+
   if (el.colorLetter) el.colorLetter.addEventListener("input", onColorChange);
   if (el.colorDigit) el.colorDigit.addEventListener("input", onColorChange);
   if (el.colorPunct) el.colorPunct.addEventListener("input", onColorChange);
   if (el.colorTx) el.colorTx.addEventListener("input", onColorChange);
   if (el.fontFamily) el.fontFamily.addEventListener("change", onFontChange);
   if (el.fontSize) el.fontSize.addEventListener("input", onFontChange);
+  if (el.chartWindow) el.chartWindow.addEventListener("input", onChartWindowChange);
 }
 
 function handleError(err) {
@@ -626,6 +716,7 @@ async function init() {
   await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards(), loadPresets()]);
   await refreshCardRuntime();
   setInterval(() => pollMessages(), 500);
+  setInterval(() => pollCardSeries().catch(handleError), 500);
   setInterval(() => refreshSerialStatus().catch(handleError), 2000);
   setInterval(() => refreshCardRuntime().catch(handleError), 1000);
 }

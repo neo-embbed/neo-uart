@@ -9,8 +9,8 @@ import serial
 def main() -> None:
     port = "COM6"
     baudrate = 115200
-    period_s = 5.0
-    amplitude = 1.0
+    period_s = 1.0
+    amplitude = 10
     offset = 0.0
     sample_hz = 50
     interval = 1.0 / sample_hz

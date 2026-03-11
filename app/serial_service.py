@@ -1,6 +1,6 @@
 import threading
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import serial
@@ -103,7 +103,7 @@ class SerialService:
         with self._lock:
             msg = SerialMessage(
                 id=self._next_message_id,
-                ts=datetime.utcnow(),
+                ts=datetime.now(timezone.utc),
                 direction=direction,  # type: ignore[arg-type]
                 content=content,
             )
