@@ -389,12 +389,30 @@ button {
 
 .metric-card {
   --card-accent: #0e7a68;
+  position: relative;
   display: grid;
   gap: 8px;
   min-height: 250px;
   border: 1px solid color-mix(in srgb, var(--card-accent), #ced8e5 70%);
   background:
     radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--card-accent), #ffffff 88%), #f7fbff 60%);
+}
+
+.card-head {
+  text-align: center;
+}
+
+.card-toggle {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card-accent), #ffffff 78%);
+  color: #1d2b3a;
+  font-weight: 700;
+  padding: 0;
 }
 
 .metric-title {
@@ -419,6 +437,28 @@ button {
   font-weight: 700;
   margin-left: 0.18em;
   opacity: 0.9;
+}
+
+.metric-chart {
+  position: relative;
+  background: color-mix(in srgb, var(--card-accent), #ffffff 92%);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.metric-value-inline {
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-size: 28px;
+  color: #1d2b3a;
+  text-shadow: none;
+}
+
+.sparkline {
+  width: 100%;
+  height: 90px;
+  display: block;
 }
 
 .metric-foot {

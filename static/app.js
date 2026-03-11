@@ -4,6 +4,8 @@ const state = {
   cards: [],
   cardRuntimeById: {},
   settings: null,
+  cardViewById: {},
+  cardHistoryById: {},
 };
 
 const SETTINGS_KEY = "neo_uart_settings_v1";
@@ -319,14 +321,32 @@ async function sendPayload() {
 function cardTemplate(item, runtime) {
   const valueText = runtime?.matched ? String(runtime.latest_value) : "--";
   const unitText = item.unit ? ` ${item.unit}` : "";
-  const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--";
+  //const runtimeAt = runtime?.matched_at ? new Date(`${runtime.matched_at}Z`).toLocaleTimeString() : "--:--:--";
+  const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--"; 
   const patternError = runtime?.pattern_error
     ? `<div class="card-meta">Pattern Error: ${escapeHtml(runtime.pattern_error)}</div>`
     : "";
+  const view = state.cardViewById[item.id] || "value";
+  const history = state.cardHistoryById[item.id] || [];
+  const chartSvg = view === "chart" ? renderSparklineSvg(history) : "";
 
   return `<article class="card-item metric-card" style="--card-accent:${escapeHtml(item.color || "#0e7a68")};">
-    <h4 class="metric-title">${escapeHtml(item.name)}</h4>
-    <div class="metric-value">${escapeHtml(valueText)}<span class="metric-unit">${escapeHtml(unitText)}</span></div>
+    <div class="card-head">
+      <button type="button" class="card-toggle" data-action="toggleView" data-id="${item.id}" title="切换显示">↔</button>
+      <h4 class="metric-title">${escapeHtml(item.name)}</h4>
+    </div>
+    ${
+      view === "value"
+        ? `<div class="metric-value">${escapeHtml(valueText)}<span class="metric-unit">${escapeHtml(
+            unitText
+          )}</span></div>`
+        : `<div class="metric-chart">
+            ${chartSvg}
+            <div class="metric-value metric-value-inline">${escapeHtml(valueText)}<span class="metric-unit">${escapeHtml(
+              unitText
+            )}</span></div>
+          </div>`
+    }
     <div class="metric-foot">更新时间 ${runtimeAt}</div>
     <div class="card-meta">规则: ${escapeHtml(item.pattern)}</div>
     ${patternError}
@@ -382,8 +402,51 @@ async function refreshCardRuntime() {
   const data = await api("/api/cards/runtime");
   const runtimeItems = data.items || [];
   state.cardRuntimeById = Object.fromEntries(runtimeItems.map((item) => [item.card_id, item]));
+  updateCardHistory(runtimeItems);
   renderCards();
 }
+
+
+function updateCardHistory(runtimeItems) {
+  runtimeItems.forEach((item) => {
+    if (!item.matched) return;
+    const value = Number.parseFloat(item.latest_value);
+    if (!Number.isFinite(value)) return;
+    const list = state.cardHistoryById[item.card_id] || [];
+    list.push(value);
+    if (list.length > 60) list.shift();
+    state.cardHistoryById[item.card_id] = list;
+  });
+}
+
+function renderSparklineSvg(values) {
+  const width = 220;
+  const height = 70;
+  if (!values.length) {
+    return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+      <line x1="0" y1="${height - 1}" x2="${width}" y2="${height - 1}" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+      <text x="${width / 2}" y="${height / 2}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="10">暂无数据</text>
+    </svg>`;
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const step = width / Math.max(values.length - 1, 1);
+  const points = values
+    .map((v, idx) => {
+      const x = idx * step;
+      const y = height - ((v - min) / span) * (height - 6) - 3;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+  return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    <polyline fill="none" stroke="var(--card-accent)" stroke-width="2" points="${points}" />
+    <circle cx="${((values.length - 1) * step).toFixed(2)}" cy="${(
+      height - ((values[values.length - 1] - min) / span) * (height - 6) - 3
+    ).toFixed(2)}" r="2.5" fill="var(--card-accent)" />
+  </svg>`;
+}
+
 
 async function createCard() {
   const name = el.cardName.value.trim();
@@ -465,9 +528,14 @@ async function onCardsListClick(event) {
     });
     await loadCards();
     await refreshCardRuntime();
+    return;
+  }
+
+  if (action === "toggleView") {
+    state.cardViewById[id] = state.cardViewById[id] === "chart" ? "value" : "chart";
+    renderCards();
   }
 }
-
 async function pollMessages() {
   try {
     const data = await api(`/api/serial/messages?after_id=${state.lastMessageId}&limit=200`);

@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import CardCreateRequest, CardRuntimeStatus, CardUpdateRequest, MonitorCard, SerialMessage
@@ -31,7 +31,7 @@ class CardService:
 
     def save_preset(self, name: str) -> None:
         payload = self._load_payload()
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         cards = [card.model_dump(mode="json") for card in self._normalize_cards(payload["current"])]
         presets = payload.get("presets", [])
         updated = False
@@ -67,7 +67,7 @@ class CardService:
             enabled=req.enabled,
             unit=req.unit or "",
             color=req.color,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         cards.append(card)
         payload["current"] = [c.model_dump(mode="json") for c in cards]
