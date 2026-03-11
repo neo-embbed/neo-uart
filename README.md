@@ -28,29 +28,27 @@ neo-uart/
 
 ## 2. 快速启动
 
-### 方式 A：一键启动（推荐）
-双击根目录的 `start.bat`，会自动：
-1. 创建 `.venv`（若不存在）
+### 方式 A：Embedded runtime（推荐）
+
+从release中下载的压缩包中带有目录`python/`
+
+使用自带的 Python embeddable runtime，双击根目录的 `start.bat`，会自动：
+
+1. 使用 `python/` 目录中的runtime
 2. 安装依赖
 3. 启动后端
 4. 打开浏览器页面
 
-### 方式 B：手动启动
-```powershell
-cd d:\Project\neo-embedded\neo-uart
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
+### 方式 B：Venv 启动
 
-浏览器访问：`http://127.0.0.1:8000/`
+双击根目录的 `start_venv.bat`
 
 ## 3. 卡片与预设
 
 ### 3.1 卡片字段
 - `name`：卡片名称
 - `pattern`：匹配规则（优先按正则；非法正则时回退为关键字包含）
+- `type`：卡片类型（`numeric` 数值型 / `boolean` 布尔型）
 - `unit`：单位（可选，显示在数值后）
 - `color`：卡片颜色（创建或编辑时指定）
 - `enabled`：启用状态
@@ -59,9 +57,12 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 `data/monitor_cards.json` 使用以下结构：
 ```json
 {
-  "current": [
-    { "id": 1, "name": "...", "pattern": "...", "enabled": true, "unit": "", "color": "#0e7a68", "created_at": "..." }
-  ],
+  "current": {
+    "name": "当前配置名",
+    "cards": [
+      { "id": 1, "name": "...", "pattern": "...", "type": "numeric", "enabled": true, "unit": "", "color": "#0e7a68", "created_at": "..." }
+    ]
+  },
   "presets": [
     { "name": "默认配置", "saved_at": "2026-03-11T00:00:00", "cards": [ ... ] }
   ]
@@ -71,6 +72,26 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ### 3.3 预设功能
 - 保存当前卡片列表到命名预设
 - 载入预设后替换当前卡片列表
+
+### 3.4 正则匹配示例
+
+数值型卡片（提取捕获组中的数值）：
+```text
+T1[:=]\s*([-+]?\d+(?:\.\d+)?)
+```
+说明：
+- 建议用捕获组 `(...)` 提取目标值
+- 若无捕获组，默认取整条匹配文本
+
+布尔型卡片（命中正则后，将捕获组映射为 True/False）：
+```text
+ALARM=(ON|OFF); true=ON; false=OFF
+```
+说明：
+- `; true=...; false=...` 用于自定义映射
+- 值可用 `|` 或 `,` 分隔多个候选
+- 若不写映射，默认使用：`ON/TRUE/1/YES` → `TRUE`，`OFF/FALSE/0/NO` → `FALSE`
+- 匹配到但不在映射内时显示 **不匹配**（红色）
 
 ## 4. 主要接口
 
