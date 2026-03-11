@@ -171,6 +171,57 @@ body {
   margin-bottom: 12px;
 }
 
+.panel-title-sub {
+  font-weight: 500;
+  color: var(--subtext);
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.hint-tooltip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--subtext);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: help;
+  position: relative;
+}
+
+.hint-tooltip::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 24px;
+  left: 0;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #0f1c2b;
+  color: #f6f8fb;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 10px 20px rgba(15, 28, 43, 0.25);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 120ms ease, transform 120ms ease;
+  z-index: 10;
+}
+
+.hint-tooltip:hover::after,
+.hint-tooltip:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .panel-subtitle {
   margin: -6px 0 14px;
   color: var(--subtext);
@@ -322,7 +373,7 @@ button {
 
 .card-form {
   display: grid;
-  grid-template-columns: 1.2fr 1.3fr 0.9fr 90px auto;
+  grid-template-columns: 1.1fr 1.2fr 0.8fr 0.7fr 90px auto;
   gap: 8px;
 }
 
@@ -430,6 +481,14 @@ button {
   line-height: 1.05;
   letter-spacing: 0.02em;
   color: var(--card-accent);
+}
+
+.metric-value.boolean-false {
+  color: #7b8a9b;
+}
+
+.metric-value.boolean-unknown {
+  color: #c11a1a;
 }
 
 .metric-unit {

@@ -6,6 +6,7 @@ const state = {
   settings: null,
   cardViewById: {},
   cardHistoryById: {},
+  currentPresetName: "",
 };
 
 const SETTINGS_KEY = "neo_uart_settings_v1";
@@ -59,6 +60,7 @@ const el = {
   clearTerminalBtn: document.getElementById("clearTerminalBtn"),
   cardName: document.getElementById("cardName"),
   cardPattern: document.getElementById("cardPattern"),
+  cardType: document.getElementById("cardType"),
   cardUnit: document.getElementById("cardUnit"),
   cardColor: document.getElementById("cardColor"),
   createCardBtn: document.getElementById("createCardBtn"),
@@ -67,6 +69,7 @@ const el = {
   savePresetBtn: document.getElementById("savePresetBtn"),
   presetSelect: document.getElementById("presetSelect"),
   loadPresetBtn: document.getElementById("loadPresetBtn"),
+  currentPresetLabel: document.getElementById("currentPresetLabel"),
   colorLetter: document.getElementById("colorLetter"),
   colorDigit: document.getElementById("colorDigit"),
   colorPunct: document.getElementById("colorPunct"),
@@ -323,25 +326,52 @@ async function sendPayload() {
 }
 
 function cardTemplate(item, runtime) {
-  const valueText = runtime?.matched ? String(runtime.latest_value) : "--";
-  const unitText = item.unit ? ` ${item.unit}` : "";
+  const isBoolean = item.type === "boolean";
+  const hasBooleanValue = typeof runtime?.latest_value === "string" && runtime.latest_value.trim() !== "";
+  const booleanValue = hasBooleanValue ? runtime.latest_value.trim().toLowerCase() : "";
+  const isUnknown = booleanValue === "unknown";
+  const isTrue = booleanValue === "true" || booleanValue === "on" || booleanValue === "1" || booleanValue === "yes";
+  const isFalse = booleanValue === "false" || booleanValue === "off" || booleanValue === "0" || booleanValue === "no";
+  const valueText = isBoolean
+    ? runtime?.matched
+      ? isUnknown
+        ? "不匹配"
+        : isFalse
+          ? "FALSE"
+          : "TRUE"
+      : "FALSE"
+    : runtime?.matched
+      ? String(runtime.latest_value)
+      : "--";
+  const unitText = !isBoolean && item.unit ? ` ${item.unit}` : "";
   const runtimeAt = runtime?.matched_at ? new Date(`${runtime.matched_at}Z`).toLocaleTimeString() : "--:--:--";
   //const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--"; 
   const patternError = runtime?.pattern_error
     ? `<div class="card-meta">Pattern Error: ${escapeHtml(runtime.pattern_error)}</div>`
     : "";
-  const view = state.cardViewById[item.id] || "value";
+  const view = isBoolean ? "value" : state.cardViewById[item.id] || "value";
   const history = state.cardHistoryById[item.id] || [];
   const chartSvg = view === "chart" ? renderSparklineSvg(history) : "";
+  const valueClass = isBoolean
+    ? isUnknown
+      ? "metric-value boolean-unknown"
+      : !runtime?.matched || isFalse
+        ? "metric-value boolean-false"
+        : "metric-value"
+    : "metric-value";
 
   return `<article class="card-item metric-card" style="--card-accent:${escapeHtml(item.color || "#0e7a68")};">
     <div class="card-head">
-      <button type="button" class="card-toggle" data-action="toggleView" data-id="${item.id}" title="切换显示">↔</button>
+      ${
+        isBoolean
+          ? ""
+          : `<button type="button" class="card-toggle" data-action="toggleView" data-id="${item.id}" title="切换显示">↔</button>`
+      }
       <h4 class="metric-title">${escapeHtml(item.name)}</h4>
     </div>
     ${
       view === "value"
-        ? `<div class="metric-value">${escapeHtml(valueText)}<span class="metric-unit">${escapeHtml(
+        ? `<div class="${valueClass}">${escapeHtml(valueText)}<span class="metric-unit">${escapeHtml(
             unitText
           )}</span></div>`
         : `<div class="metric-chart">
@@ -371,9 +401,17 @@ function renderCards() {
     .join("");
 }
 
+function updateCurrentPresetLabel(name) {
+  if (!el.currentPresetLabel) return;
+  state.currentPresetName = name || "";
+  const label = state.currentPresetName ? `（当前配置：${state.currentPresetName}）` : "（当前配置：未选择）";
+  el.currentPresetLabel.textContent = label;
+}
+
 async function loadCards() {
   const data = await api("/api/cards");
   state.cards = data.items || [];
+  updateCurrentPresetLabel(data.current_name || "");
   renderCards();
 }
 
@@ -381,12 +419,14 @@ async function loadPresets() {
   if (!el.presetSelect) return;
   const data = await api("/api/cards/presets");
   const items = data.items || [];
+  const previous = state.currentPresetName || el.presetSelect.value || "";
   el.presetSelect.innerHTML = "";
   if (!items.length) {
     const op = document.createElement("option");
     op.value = "";
     op.textContent = "暂无保存配置";
     el.presetSelect.append(op);
+    updateCurrentPresetLabel("");
     return;
   }
   items.forEach((item) => {
@@ -395,6 +435,11 @@ async function loadPresets() {
     op.textContent = item.name;
     el.presetSelect.append(op);
   });
+  const hasPrevious = previous && Array.from(el.presetSelect.options).some((op) => op.value === previous);
+  if (hasPrevious) {
+    el.presetSelect.value = previous;
+  }
+  updateCurrentPresetLabel(state.currentPresetName || el.presetSelect.value || "");
 }
 
 async function refreshCardRuntime() {
@@ -412,8 +457,11 @@ async function refreshCardRuntime() {
 
 
 function updateCardHistory(runtimeItems) {
+  const cardById = Object.fromEntries(state.cards.map((card) => [card.id, card]));
   runtimeItems.forEach((item) => {
     if (!item.matched) return;
+    const card = cardById[item.card_id];
+    if (card?.type === "boolean") return;
     const value = Number.parseFloat(item.latest_value);
     if (!Number.isFinite(value)) return;
     const list = state.cardHistoryById[item.card_id] || [];
@@ -455,7 +503,8 @@ function renderSparklineSvg(values) {
 async function createCard() {
   const name = el.cardName.value.trim();
   const pattern = el.cardPattern.value.trim();
-  const unit = el.cardUnit.value.trim();
+  const type = el.cardType?.value || "numeric";
+  const unit = type === "boolean" ? "" : el.cardUnit.value.trim();
   const color = el.cardColor.value || "#0e7a68";
 
   if (!name || !pattern) {
@@ -468,6 +517,7 @@ async function createCard() {
     body: JSON.stringify({
       name,
       pattern,
+      type,
       unit,
       color,
       enabled: true,
@@ -478,21 +528,36 @@ async function createCard() {
   el.cardPattern.value = "";
   el.cardUnit.value = "";
   el.cardColor.value = "#0e7a68";
+  if (el.cardType) el.cardType.value = "numeric";
   await loadCards();
   await refreshCardRuntime();
 }
 
 async function savePreset() {
-  const name = el.presetName?.value.trim() || "";
+  const inputName = el.presetName?.value.trim() || "";
+  const name = inputName || state.currentPresetName;
   if (!name) {
     alert("请输入配置名称");
     return;
+  }
+  const existingNames = Array.from(el.presetSelect?.options || []).map((op) => op.value).filter(Boolean);
+  if (existingNames.includes(name)) {
+    const ok = window.confirm(`配置“${name}”已存在，是否覆盖？`);
+    if (!ok) return;
   }
   await api("/api/cards/presets", {
     method: "POST",
     body: JSON.stringify({ name }),
   });
   await loadPresets();
+  await loadCards();
+  if (el.presetSelect) {
+    el.presetSelect.value = name;
+  }
+  updateCurrentPresetLabel(name);
+  if (el.presetName) {
+    el.presetName.value = "";
+  }
 }
 
 async function loadPreset() {
@@ -504,6 +569,10 @@ async function loadPreset() {
   });
   await loadCards();
   await refreshCardRuntime();
+  if (el.presetSelect) {
+    el.presetSelect.value = name;
+  }
+  updateCurrentPresetLabel(name);
 }
 
 async function onCardsListClick(event) {
@@ -536,8 +605,11 @@ async function onCardsListClick(event) {
   }
 
   if (action === "toggleView") {
-    state.cardViewById[id] = state.cardViewById[id] === "chart" ? "value" : "chart";
-    renderCards();
+    const card = state.cards.find((item) => item.id === id);
+    if (card?.type !== "boolean") {
+      state.cardViewById[id] = state.cardViewById[id] === "chart" ? "value" : "chart";
+      renderCards();
+    }
   }
 }
 async function pollMessages() {
@@ -575,6 +647,20 @@ function bindEvents() {
   }
   if (el.loadPresetBtn) {
     el.loadPresetBtn.addEventListener("click", () => loadPreset().catch(handleError));
+  }
+  if (el.presetSelect) {
+    el.presetSelect.addEventListener("change", () => {
+      updateCurrentPresetLabel(el.presetSelect.value || "");
+    });
+  }
+  if (el.cardType && el.cardUnit) {
+    const syncCardType = () => {
+      const isBoolean = el.cardType.value === "boolean";
+      el.cardUnit.disabled = isBoolean;
+      if (isBoolean) el.cardUnit.value = "";
+    };
+    el.cardType.addEventListener("change", syncCardType);
+    syncCardType();
   }
 
   const onColorChange = () => {

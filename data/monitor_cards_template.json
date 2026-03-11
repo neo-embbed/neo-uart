@@ -1,0 +1,55 @@
+﻿{
+  "current": {
+    "name": "default",
+    "cards": [
+      {
+        "id": 1,
+        "name": "温度",
+        "pattern": "T1[:=]\\\\s*([-+]?\\\\d+(?:\\\\.\\\\d+)?)",
+        "type": "numeric",
+        "enabled": true,
+        "unit": "℃",
+        "color": "#0e7a68",
+        "created_at": "2026-03-11T07:36:37.216514Z"
+      },
+      {
+        "id": 2,
+        "name": "报警",
+        "pattern": "ALARM=(ON|OFF); true=ON; false=OFF",
+        "type": "boolean",
+        "enabled": true,
+        "unit": "",
+        "color": "#ff0059",
+        "created_at": "2026-03-11T07:37:05.485921Z"
+      }
+    ]
+  },
+  "presets": [
+    {
+      "name": "default",
+      "cards": [
+        {
+          "id": 1,
+          "name": "温度",
+          "pattern": "T1[:=]\\\\s*([-+]?\\\\d+(?:\\\\.\\\\d+)?)",
+          "type": "numeric",
+          "enabled": true,
+          "unit": "℃",
+          "color": "#0e7a68",
+          "created_at": "2026-03-11T07:36:37.216514Z"
+        },
+        {
+          "id": 2,
+          "name": "报警",
+          "pattern": "ALARM=(ON|OFF); true=ON; false=OFF",
+          "type": "boolean",
+          "enabled": true,
+          "unit": "",
+          "color": "#ff0059",
+          "created_at": "2026-03-11T07:37:05.485921Z"
+        }
+      ],
+      "saved_at": "2026-03-11T07:37:12.772176+00:00"
+    }
+  ]
+}

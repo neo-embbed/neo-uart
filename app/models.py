@@ -29,6 +29,7 @@ class SerialMessage(BaseModel):
 class CardCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=64)
     pattern: str = Field(min_length=1, max_length=256)
+    type: Literal["numeric", "boolean"] = "numeric"
     enabled: bool = True
     unit: Optional[str] = Field(default="", max_length=32)
     color: str = Field(default="#0e7a68", pattern=r"^#[0-9a-fA-F]{6}$")
@@ -37,6 +38,7 @@ class CardCreateRequest(BaseModel):
 class CardUpdateRequest(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=64)
     pattern: Optional[str] = Field(default=None, min_length=1, max_length=256)
+    type: Optional[Literal["numeric", "boolean"]] = None
     enabled: Optional[bool] = None
     unit: Optional[str] = Field(default=None, max_length=32)
     color: Optional[str] = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
@@ -46,6 +48,7 @@ class MonitorCard(BaseModel):
     id: int
     name: str
     pattern: str
+    type: Literal["numeric", "boolean"] = "numeric"
     enabled: bool
     unit: str = ""
     color: str = "#0e7a68"

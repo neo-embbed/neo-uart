@@ -24,17 +24,24 @@
     <div class="split-layout">
       <section id="cards" class="cards-column">
         <div class="panel">
-          <div class="panel-title">新增监测卡片</div>
+          <div class="panel-title">
+            新增监测卡片
+            <span class="hint-tooltip" data-tip="布尔型可用：正则; true=ON|OPEN; false=OFF|CLOSE">?</span>
+          </div>
           <div class="card-form">
             <input id="cardName" placeholder="卡片名称，例如：温度报警" />
             <input id="cardPattern" placeholder="匹配规则（正则或关键词）" />
+            <select id="cardType" title="卡片类型">
+              <option value="numeric" selected>数值型</option>
+              <option value="boolean">布尔型</option>
+            </select>
             <input id="cardUnit" placeholder="单位（可选）" />
             <input id="cardColor" type="color" value="#0e7a68" title="卡片颜色" />
             <button id="createCardBtn" type="button" class="btn-primary">创建卡片</button>
           </div>
         </div>
         <div class="panel">
-          <div class="panel-title">已配置卡片</div>
+          <div class="panel-title">已配置卡片 <span id="currentPresetLabel" class="panel-title-sub">（当前配置：未选择）</span></div>
           <div id="cardsList" class="cards-grid"></div>
         </div>
         <div class="panel">

@@ -110,7 +110,10 @@ def list_messages(after_id: int = 0, limit: int = 200) -> dict:
 @app.get("/api/cards")
 def list_cards() -> dict:
     items = card_service.list_cards()
-    return {"items": [c.model_dump(mode="json") for c in items]}
+    return {
+        "items": [c.model_dump(mode="json") for c in items],
+        "current_name": card_service.current_name(),
+    }
 
 
 @app.get("/api/cards/presets")
