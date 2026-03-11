@@ -45,6 +45,7 @@ const el = {
   tabs: document.querySelectorAll(".tab"),
   pages: document.querySelectorAll(".tab-page"),
   portSelect: document.getElementById("portSelect"),
+  customPort: document.getElementById("customPort"),
   baudrate: document.getElementById("baudrate"),
   serialStatus: document.getElementById("serialStatus"),
   terminal: document.getElementById("terminal"),
@@ -279,14 +280,17 @@ async function refreshSerialStatus() {
 }
 
 async function connectSerial() {
-  if (!el.portSelect.value) {
-    alert("请先选择可用串口");
+  const manualPort = el.customPort?.value.trim();
+  const selectedPort = el.portSelect.value;
+  const port = manualPort || selectedPort;
+  if (!port) {
+    alert("请先选择或输入可用串口");
     return;
   }
   await api("/api/serial/connect", {
     method: "POST",
     body: JSON.stringify({
-      port: el.portSelect.value,
+      port,
       baudrate: Number(el.baudrate.value),
       bytesize: 8,
       parity: "N",
@@ -321,8 +325,8 @@ async function sendPayload() {
 function cardTemplate(item, runtime) {
   const valueText = runtime?.matched ? String(runtime.latest_value) : "--";
   const unitText = item.unit ? ` ${item.unit}` : "";
-  //const runtimeAt = runtime?.matched_at ? new Date(`${runtime.matched_at}Z`).toLocaleTimeString() : "--:--:--";
-  const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--"; 
+  const runtimeAt = runtime?.matched_at ? new Date(`${runtime.matched_at}Z`).toLocaleTimeString() : "--:--:--";
+  //const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--"; 
   const patternError = runtime?.pattern_error
     ? `<div class="card-meta">Pattern Error: ${escapeHtml(runtime.pattern_error)}</div>`
     : "";
