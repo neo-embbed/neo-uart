@@ -1,4 +1,5 @@
 .venv/
+python/
 .virtualenv-app-data/
 .tmp/
 __pycache__/
