@@ -30,6 +30,8 @@ const DEFAULT_SETTINGS = {
   },
 };
 
+const BRAND_SUBTITLE_KEY = "neo_uart_brand_subtitle_v1";
+
 const API_BASE = (() => {
   const customBase = window.NEO_API_BASE;
   if (typeof customBase === "string" && customBase.trim()) {
@@ -76,6 +78,7 @@ const el = {
   colorTx: document.getElementById("colorTx"),
   fontFamily: document.getElementById("fontFamily"),
   fontSize: document.getElementById("fontSize"),
+  brandSubtitle: document.getElementById("brandSubtitle"),
 };
 
 function setupTabs() {
@@ -704,11 +707,36 @@ function handleError(err) {
   addLocalLine("sys", `错误: ${message}`);
 }
 
+function initBrandSubtitle() {
+  if (!el.brandSubtitle) return;
+  if (window.localStorage) {
+    const saved = window.localStorage.getItem(BRAND_SUBTITLE_KEY);
+    if (saved && saved.trim()) {
+      el.brandSubtitle.textContent = saved.trim();
+    }
+  }
+  const sanitize = () => {
+    const text = el.brandSubtitle.textContent?.trim() || "";
+    el.brandSubtitle.textContent = text;
+    if (window.localStorage) {
+      window.localStorage.setItem(BRAND_SUBTITLE_KEY, text);
+    }
+  };
+  el.brandSubtitle.addEventListener("blur", sanitize);
+  el.brandSubtitle.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      el.brandSubtitle.blur();
+    }
+  });
+}
+
 async function init() {
   state.settings = loadSettings();
   applySettings(state.settings);
   setupTabs();
   bindEvents();
+  initBrandSubtitle();
   await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards(), loadPresets()]);
   await refreshCardRuntime();
   setInterval(() => pollMessages(), 500);

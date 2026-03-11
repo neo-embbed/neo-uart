@@ -84,6 +84,16 @@ body {
   color: var(--subtext);
 }
 
+.brand-subtitle {
+  cursor: text;
+  outline: none;
+}
+
+.brand-subtitle:focus {
+  color: var(--text);
+  border-bottom: 1px dashed color-mix(in srgb, var(--primary), transparent 35%);
+}
+
 .badge {
   font-size: 13px;
   color: #e9f6f2;
