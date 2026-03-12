@@ -372,8 +372,23 @@ function cardTemplate(item, runtime) {
       ? String(runtime.latest_value)
       : "--";
   const unitText = !isBoolean && item.unit ? ` ${item.unit}` : "";
-  const runtimeAt = runtime?.matched_at ? new Date(`${runtime.matched_at}Z`).toLocaleTimeString() : "--:--:--";
-  //const runtimeAt = runtime?.matched_at ? new Date(runtime.matched_at).toLocaleTimeString() : "--:--:--"; 
+  
+  // 处理多种datetime格式：
+  // - "2026-03-12T10:30:00" (无时区)
+  // - "2026-03-12T10:30:00Z" (Z后缀)
+  // - "2026-03-12T10:30:00+00:00" (时区偏移)
+  // - "2026-03-12T10:30:00.123456" (毫秒)
+  const runtimeAt = runtime?.matched_at 
+    ? (() => {
+        let ts = String(runtime.matched_at).trim();
+        // 如果末尾已经有Z或时区标识，直接解析；否则添加Z表示UTC
+        if (!ts.match(/[Z+\-]$/)) {
+          ts += "Z";
+        }
+        const date = new Date(ts);
+        return Number.isNaN(date.getTime()) ? "--:--:--" : date.toLocaleTimeString();
+      })()
+    : "--:--:--"; 
   const patternError = runtime?.pattern_error
     ? `<div class="card-meta">Pattern Error: ${escapeHtml(runtime.pattern_error)}</div>`
     : "";

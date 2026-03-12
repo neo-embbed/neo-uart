@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConnectRequest(BaseModel):
@@ -20,6 +20,12 @@ class SendRequest(BaseModel):
 
 
 class SerialMessage(BaseModel):
+    model_config = ConfigDict(
+        json_encoders={
+            datetime: lambda v: v.isoformat().replace("+00:00", "") if v.tzinfo else v.isoformat()
+        }
+    )
+
     id: int
     ts: datetime
     direction: Literal["rx", "tx", "sys"]
@@ -45,6 +51,12 @@ class CardUpdateRequest(BaseModel):
 
 
 class MonitorCard(BaseModel):
+    model_config = ConfigDict(
+        json_encoders={
+            datetime: lambda v: v.isoformat().replace("+00:00", "") if v.tzinfo else v.isoformat()
+        }
+    )
+
     id: int
     name: str
     pattern: str
@@ -56,6 +68,12 @@ class MonitorCard(BaseModel):
 
 
 class CardRuntimeStatus(BaseModel):
+    model_config = ConfigDict(
+        json_encoders={
+            datetime: lambda v: v.isoformat().replace("+00:00", "") if v.tzinfo else v.isoformat()
+        }
+    )
+
     card_id: int
     matched: bool
     latest_value: str = ""
