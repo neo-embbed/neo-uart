@@ -1,156 +1,44 @@
-﻿# Neo UART Assistant 系统流程图（当前）
+﻿# Neo UART Assistant 系统流程图
 
-为避免部分 Mermaid 渲染器中文编码问题，图内节点使用 ASCII 英文，正文说明保持中文。
+为避免 Mermaid 渲染器中文编码问题，图内节点使用 ASCII 英文，正文说明保持中文。
 
-## 1. 系统总流程
+## 1. 系统总览
 ```mermaid
 flowchart TD
-    A[User starts app] --> B[FastAPI boot]
+    A[Start] --> B[FastAPI boot]
     B --> C[Init SerialService]
     B --> D[Init CardService]
     B --> E[Frontend load]
-
-    E --> F[Frontend init]
-    F --> F1[GET api health]
-    F --> F2[GET api serial ports]
-    F --> F3[GET api serial status]
-    F --> F4[GET api cards]
-    F --> F5[GET api cards runtime]
-    F --> F6[GET api cards presets]
-
-    F --> G[Start polling]
-    G --> G1[500ms get serial messages]
-    G --> G2[1000ms get cards runtime]
-    G --> G3[2000ms get serial status]
-
-    G1 --> H[Update terminal view]
-    G2 --> I[Update card value]
-    G3 --> J[Update connect status]
+    E --> F[Init & Fetch APIs]
+    F --> G[Polling loop]
+    G --> H[Update terminal/cards/status]
 ```
 
-## 2. 串口连接与读线程流程
-
+## 2. 串口连接与读线程
 ```mermaid
 flowchart TD
-    A[Click connect] --> B[POST api serial connect]
+    A[Click connect] --> B[POST /api/serial/connect]
     B --> C{Already connected}
     C -- yes --> C1[Return 400]
-    C -- no --> D[Create serial object]
-    D --> E[Clear stop event]
-    E --> F[Start reader thread]
-    F --> G[Append sys connected]
-    G --> H[Return connected]
-
-    subgraph ReaderThread
-        R1{Stop event set}
-        R1 -- no --> R2{Serial open}
-        R2 -- no --> R7[Exit thread]
-        R2 -- yes --> R3[Read 256 bytes]
-        R3 --> R4{Data exists}
-        R4 -- no --> R1
-        R4 -- yes --> R5[Decode replace]
-        R5 --> R6[Append rx message]
-        R6 --> R1
-        R3 -->|error| R8[Append sys read error]
-        R8 --> R7
-    end
+    C -- no --> D[Open serial & start reader]
+    D --> E[Reader thread appends rx/sys]
 ```
 
-## 3. 卡片实时值计算流程
+## 3. 卡片运行态计算
 ```mermaid
 flowchart TD
-    A[GET api cards runtime] --> B[Load cards]
-    B --> C[Load recent messages]
-    C --> D[Filter rx messages]
-    D --> E[For each card]
-
-    E --> F{Card enabled}
-    F -- no --> F1[matched false]
-    F -- yes --> G[Compile regex pattern]
-
-    G -->|ok| H[Scan rx from new to old]
-    H --> I{Match found}
-    I -- no --> I1[matched false]
-    I -- yes --> J{Has capture group}
-    J -- yes --> J1[Use first non empty group]
-    J -- no --> J2[Use full match text]
-    J1 --> K[Fill value and timestamp]
-    J2 --> K
-
-    G -->|error| L[Fallback keyword contains]
-    L --> M{Contains found}
-    M -- no --> M1[matched false with pattern error]
-    M -- yes --> M2[Use full message text]
-
-    F1 --> N[Append runtime item]
-    I1 --> N
-    K --> N
-    M1 --> N
-    M2 --> N
-    N --> O[Return runtime list]
+    A[GET /api/cards/runtime] --> B[Load cards + rx messages]
+    B --> C[For each enabled card]
+    C --> D[Regex match, fallback keyword]
+    D --> E[Extract value & timestamp]
+    E --> F[Return runtime list]
 ```
 
-## 4. 卡片预设保存/载入流程
+## 4. 预设保存/载入
 ```mermaid
 flowchart TD
-    A[User input preset name] --> B[POST api cards presets]
-    B --> C[Load current cards]
-    C --> D[Upsert preset by name]
-    D --> E[Save monitor_cards.json]
-    E --> F[Return saved]
-
-    G[User select preset] --> H[POST api cards presets load]
-    H --> I[Find preset by name]
-    I --> J{Found}
-    J -- no --> J1[Return 404]
-    J -- yes --> K[Replace current cards]
-    K --> L[Save monitor_cards.json]
-    L --> M[Return loaded]
-```
-
-## 5. 前后端交互时序图
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant FE as Frontend
-    participant API as FastAPI
-    participant SS as SerialService
-    participant CS as CardService
-
-    U->>FE: Open page
-    FE->>API: GET api health
-    FE->>API: GET api serial ports
-    FE->>API: GET api cards
-    FE->>API: GET api cards runtime
-    FE->>API: GET api cards presets
-    API->>CS: list_cards and build_runtime_status
-    API-->>FE: Initial data
-
-    U->>FE: Save preset
-    FE->>API: POST api cards presets
-    API->>CS: save_preset
-    API-->>FE: saved
-
-    U->>FE: Load preset
-    FE->>API: POST api cards presets load
-    API->>CS: load_preset
-    API-->>FE: loaded
-
-    U->>FE: Click connect
-    FE->>API: POST api serial connect
-    API->>SS: connect and start reader thread
-    API-->>FE: connected
-
-    loop every 500ms
-        FE->>API: GET api serial messages
-        API->>SS: get_messages
-        API-->>FE: delta messages
-    end
-
-    loop every 1000ms
-        FE->>API: GET api cards runtime
-        API->>CS: build_runtime_status
-        API-->>FE: latest card values
-    end
+    A[Save preset] --> B[Upsert preset by name]
+    B --> C[Persist to monitor_cards.json]
+    D[Load preset] --> E[Replace current cards]
+    E --> C
 ```
