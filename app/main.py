@@ -90,10 +90,14 @@ def send_serial(req: SendRequest) -> dict[str, int]:
     try:
         if req.mode == "hex":
             payload = bytes.fromhex(req.payload.strip())
+            # Format hex display with spaces for user readability
+            cleaned = req.payload.replace(" ", "")
+            display_text = " ".join(cleaned[i:i+2] for i in range(0, len(cleaned), 2))
         else:
             text = req.payload + ("\n" if req.append_newline else "")
             payload = text.encode("utf-8")
-        count = serial_service.send(payload)
+            display_text = text  # Show original text as typed by user
+        count = serial_service.send(payload, display_text=display_text)
         return {"written": count}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid payload: {exc}") from exc

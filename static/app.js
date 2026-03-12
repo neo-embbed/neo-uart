@@ -55,6 +55,7 @@ const el = {
   sendInput: document.getElementById("sendInput"),
   sendMode: document.getElementById("sendMode"),
   appendNewline: document.getElementById("appendNewline"),
+  modeHint: document.getElementById("modeHint"),
   refreshPortsBtn: document.getElementById("refreshPortsBtn"),
   connectBtn: document.getElementById("connectBtn"),
   disconnectBtn: document.getElementById("disconnectBtn"),
@@ -315,17 +316,41 @@ async function disconnectSerial() {
 async function sendPayload() {
   const payload = el.sendInput.value.trim();
   if (!payload) return;
-  const appendNewline = el.appendNewline.checked && el.sendMode.value === "text";
-  await api("/api/serial/send", {
-    method: "POST",
-    body: JSON.stringify({
-      payload,
-      mode: el.sendMode.value,
-      append_newline: el.appendNewline.checked,
-    }),
-  });
-  addLocalLine("tx", appendNewline ? `${payload}\n` : payload);
-  el.sendInput.value = "";
+  const mode = el.sendMode.value;
+  const appendNewline = el.appendNewline.checked && mode === "text";
+  
+  let displayPayload = payload;
+  // In hex mode, parse and format the hex bytes for display
+  if (mode === "hex") {
+    try {
+      const cleaned = payload.replace(/\s+/g, "");
+      if (!/^[0-9A-Fa-f]*$/.test(cleaned)) {
+        throw new Error("只能输入十六进制字符 (0-9, A-F)");
+      }
+      if (cleaned.length % 2 !== 0) {
+        throw new Error("十六进制字符数必须为偶数");
+      }
+      displayPayload = cleaned.match(/.{1,2}/g)?.join(" ") || "";
+    } catch (err) {
+      addLocalLine("sys", `❌ 十六进制格式错误: ${err.message}`);
+      return;
+    }
+  }
+  
+  try {
+    await api("/api/serial/send", {
+      method: "POST",
+      body: JSON.stringify({
+        payload,
+        mode,
+        append_newline: appendNewline,
+      }),
+    });
+    el.sendInput.value = "";
+  } catch (err) {
+    const errorMsg = err?.message || String(err);
+    addLocalLine("sys", `❌ 发送失败: ${errorMsg}`);
+  }
 }
 
 function cardTemplate(item, runtime) {
@@ -664,6 +689,31 @@ function bindEvents() {
     };
     el.cardType.addEventListener("change", syncCardType);
     syncCardType();
+  }
+
+  // Sync append newline checkbox visibility with send mode
+  if (el.sendMode && el.appendNewline) {
+    const syncSendMode = () => {
+      const isTextMode = el.sendMode.value === "text";
+      el.appendNewline.disabled = !isTextMode;
+      const label = el.appendNewline.closest("label");
+      if (label) {
+        label.style.opacity = isTextMode ? "1" : "0.5";
+        label.style.pointerEvents = isTextMode ? "auto" : "none";
+      }
+      // Show mode hint for hex mode
+      if (el.modeHint) {
+        el.modeHint.style.display = isTextMode ? "none" : "block";
+      }
+      // Update textarea placeholder
+      if (el.sendInput) {
+        el.sendInput.placeholder = isTextMode 
+          ? "输入要发送的文本数据..." 
+          : "输入十六进制数据 (例: 01 02 03 或 010203)...";
+      }
+    };
+    el.sendMode.addEventListener("change", syncSendMode);
+    syncSendMode();
   }
 
   const onColorChange = () => {

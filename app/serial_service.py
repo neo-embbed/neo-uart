@@ -83,13 +83,14 @@ class SerialService:
         if should_log:
             self._append_message("sys", "Disconnected.")
 
-    def send(self, payload: bytes) -> int:
-        tx_hex = payload.hex(" ")
+    def send(self, payload: bytes, display_text: str | None = None) -> int:
         with self._lock:
             if not self._serial or not self._serial.is_open:
                 raise RuntimeError("Serial port is not connected.")
             written = self._serial.write(payload)
-        self._append_message("tx", tx_hex)
+        # Use display_text if provided (user input format), otherwise show as hex
+        message_content = display_text if display_text is not None else payload.hex(" ")
+        self._append_message("tx", message_content)
         return written
 
     def get_messages(self, after_id: int = 0, limit: int = 200) -> list[SerialMessage]:
