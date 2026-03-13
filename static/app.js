@@ -227,9 +227,11 @@ function formatTerminalContent(text) {
 
 function addLocalLine(direction, content) {
   const ts = new Date().toISOString();
-  //state.terminalLines.push({ id: Date.now(), ts, direction, content });
   state.terminalLines.push({content });
-  if (state.terminalLines.length > 3000) state.terminalLines.shift();
+  // 只保留最近50行，丢弃历史数据
+  if (state.terminalLines.length > 50) {
+    state.terminalLines = state.terminalLines.slice(-50);
+  }
   renderTerminal();
 }
 
@@ -664,8 +666,9 @@ async function pollMessages() {
       state.lastMessageId = Math.max(state.lastMessageId, m.id);
       state.terminalLines.push(m);
     });
-    if (state.terminalLines.length > 3000) {
-      state.terminalLines = state.terminalLines.slice(-3000);
+    // 只保留最近50行，丢弃历史数据
+    if (state.terminalLines.length > 50) {
+      state.terminalLines = state.terminalLines.slice(-50);
     }
     renderTerminal();
     await refreshCardRuntime();
@@ -804,9 +807,9 @@ async function init() {
   initBrandSubtitle();
   await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards(), loadPresets()]);
   await refreshCardRuntime();
-  setInterval(() => pollMessages(), 500);
+  setInterval(() => pollMessages(), 2000);
   setInterval(() => refreshSerialStatus().catch(handleError), 2000);
-  setInterval(() => refreshCardRuntime().catch(handleError), 1000);
+  setInterval(() => refreshCardRuntime().catch(handleError), 2000);
 }
 
 init().catch(handleError);

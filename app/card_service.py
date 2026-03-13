@@ -2,6 +2,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, Tuple
 
 from .models import CardCreateRequest, CardRuntimeStatus, CardUpdateRequest, MonitorCard, SerialMessage
 
@@ -10,12 +11,23 @@ class CardService:
     def __init__(self, data_file: Path) -> None:
         self._data_file = data_file
         self._data_file.parent.mkdir(parents=True, exist_ok=True)
+        # Cache compiled regex patterns with their associated tokens to avoid recompiling on every call
+        # Format: pattern -> (compiled_regex, truthy_tokens, falsy_tokens)
+        self._pattern_cache: Dict[str, Tuple[re.Pattern[str], set[str], set[str]]] = {}
+        # Cache the parsed JSON payload to avoid frequent file I/O
+        self._payload_cache: dict | None = None
+        self._cache_timestamp: float = 0
+        self._cache_ttl: float = 1.0  # Cache for 1 second
         if not self._data_file.exists():
             template = self._data_file.parent / "monitor_cards_template.json"
             if template.exists():
                 self._data_file.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
             else:
                 self._data_file.write_text("[]", encoding="utf-8")
+
+    def clear_pattern_cache(self) -> None:
+        """Clear all compiled pattern cache. Useful for memory management."""
+        self._pattern_cache.clear()
 
     def list_cards(self) -> list[MonitorCard]:
         payload = self._load_payload()
@@ -90,6 +102,9 @@ class CardService:
         cards = self._normalize_cards(payload["current"]["cards"])
         for idx, card in enumerate(cards):
             if card.id == card_id:
+                # Clear pattern cache if pattern is being updated
+                if req.pattern is not None and req.pattern != card.pattern:
+                    self._pattern_cache.pop(card.pattern, None)
                 updated = card.model_copy(
                     update={
                         "name": req.name if req.name is not None else card.name,
@@ -109,16 +124,30 @@ class CardService:
     def delete_card(self, card_id: int) -> None:
         payload = self._load_payload()
         cards = self._normalize_cards(payload["current"]["cards"])
+        # Find the card to be deleted and clean up its pattern cache
+        card_to_delete = None
+        for card in cards:
+            if card.id == card_id:
+                card_to_delete = card
+                break
+        
         filtered = [c for c in cards if c.id != card_id]
         if len(filtered) == len(cards):
             raise KeyError(f"Card {card_id} not found")
+        
+        # Clean up pattern cache for the deleted card
+        if card_to_delete:
+            self._pattern_cache.pop(card_to_delete.pattern, None)
+        
         payload["current"]["cards"] = [c.model_dump(mode="json") for c in filtered]
         self._save_payload(payload)
 
     def build_runtime_status(
         self, cards: list[MonitorCard], messages: list[SerialMessage]
     ) -> list[CardRuntimeStatus]:
-        rx_messages = [m for m in messages if m.direction == "rx"]
+        # Only process recent messages to avoid performance issues with large message buffers
+        # Limit to last 250 RX messages for performance
+        rx_messages = [m for m in messages[-250:] if m.direction == "rx"]
         statuses: list[CardRuntimeStatus] = []
 
         for card in cards:
@@ -128,11 +157,18 @@ class CardService:
                 continue
 
             try:
-                if card.type == "boolean":
-                    pattern_text, truthy_tokens, falsy_tokens = self._parse_boolean_pattern(card.pattern)
-                else:
-                    pattern_text, truthy_tokens, falsy_tokens = card.pattern, set(), set()
-                pattern = re.compile(pattern_text)
+                # Use cached pattern if available
+                if card.pattern not in self._pattern_cache:
+                    if card.type == "boolean":
+                        pattern_text, truthy_tokens, falsy_tokens = self._parse_boolean_pattern(card.pattern)
+                    else:
+                        pattern_text, truthy_tokens, falsy_tokens = card.pattern, set(), set()
+                    compiled_pattern = re.compile(pattern_text)
+                    self._pattern_cache[card.pattern] = (compiled_pattern, truthy_tokens, falsy_tokens)
+                
+                pattern, truthy_tokens, falsy_tokens = self._pattern_cache[card.pattern]
+
+                # Search from most recent messages backwards
                 for message in reversed(rx_messages):
                     match = pattern.search(message.content)
                     if not match:
@@ -156,6 +192,8 @@ class CardService:
                     statuses.append(status)
             except re.error as exc:
                 # Fallback for plain keyword matching when pattern is not a valid regex.
+                # Clear from cache to avoid repeated compilation attempts
+                self._pattern_cache.pop(card.pattern, None)
                 for message in reversed(rx_messages):
                     if card.pattern in message.content:
                         statuses.append(
@@ -177,6 +215,14 @@ class CardService:
         return statuses
 
     def _load_payload(self) -> dict:
+        import time
+        current_time = time.time()
+        
+        # Use cached payload if it's still fresh
+        if self._payload_cache is not None and (current_time - self._cache_timestamp) < self._cache_ttl:
+            return self._payload_cache.copy()
+        
+        # Load from file
         raw = self._data_file.read_text(encoding="utf-8-sig")
         if not raw.strip():
             raw = self._restore_from_template()
@@ -186,7 +232,7 @@ class CardService:
             raw = self._restore_from_template()
             data = json.loads(raw)
         if isinstance(data, list):
-            return {"current": {"name": "", "cards": data}, "presets": []}
+            data = {"current": {"name": "", "cards": data}, "presets": []}
         if "current" not in data:
             data["current"] = {"name": "", "cards": []}
         elif isinstance(data["current"], list):
@@ -196,6 +242,10 @@ class CardService:
             data["current"].setdefault("cards", [])
         if "presets" not in data:
             data["presets"] = []
+        
+        # Cache the result
+        self._payload_cache = data.copy()
+        self._cache_timestamp = current_time
         return data
 
     def _restore_from_template(self) -> str:
@@ -209,6 +259,10 @@ class CardService:
 
     def _save_payload(self, payload: dict) -> None:
         self._data_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Update cache
+        self._payload_cache = payload.copy()
+        import time
+        self._cache_timestamp = time.time()
 
     @staticmethod
     def _normalize_cards(data: list[dict]) -> list[MonitorCard]:
