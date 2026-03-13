@@ -6,4 +6,5 @@ __pycache__/
 *.pyc
 data/monitor_cards_backup.json
 data/monitor_cards.json
+data/monitor_cards_backup_user.json
 notice.txt
