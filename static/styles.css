@@ -65,6 +65,78 @@ body {
   padding: 0 16px 24px;
 }
 
+.performance-warning {
+  background: linear-gradient(135deg, #fff4e6, #ffe8cc);
+  border: 1px solid #ffb84d;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(255, 140, 0, 0.15);
+  animation: slide-down 300ms ease;
+}
+
+.performance-warning.hidden {
+  display: none;
+}
+
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warning-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.warning-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.warning-text {
+  flex: 1;
+  font-size: 13px;
+  color: #663300;
+  line-height: 1.5;
+}
+
+.warning-text strong {
+  color: #8f341f;
+  font-weight: 600;
+}
+
+.warning-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #ffb84d;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 140ms ease;
+  margin-top: 2px;
+}
+
+.warning-close:hover {
+  background: rgba(255, 140, 0, 0.15);
+  color: #8f341f;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;

@@ -10,10 +10,20 @@
   <div class="bg-shape bg-a"></div>
   <div class="bg-shape bg-b"></div>
   <main class="app-shell">
+    <div id="performanceWarning" class="performance-warning">
+      <div class="warning-content">
+        <span class="warning-icon">⚠️</span>
+        <div class="warning-text">
+          <strong>性能提示：</strong>在卡片众多且串口接收频率高的场景下，长时间运行可能出现性能问题。建议将<strong>需要串口发送的测试</strong>和<strong>多参数监控测试</strong>分开进行。
+        </div>
+        <button id="closeWarningBtn" class="warning-close" type="button" title="关闭提示">✕</button>
+      </div>
+    </div>
+
     <header class="topbar">
       <div class="brand">
         <h1>Neo UART Assistant</h1>
-        <p id="brandSubtitle" class="brand-subtitle" contenteditable="true" spellcheck="false">可自定义文字</p>
+        <p id="brandSubtitle" class="brand-subtitle" contenteditable="true" spellcheck="false">可自定义文本</p>
       </div>
       <div class="badge-group">
         <div id="healthBadge" class="badge">API Checking...</div>

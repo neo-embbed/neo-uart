@@ -80,6 +80,8 @@ const el = {
   fontFamily: document.getElementById("fontFamily"),
   fontSize: document.getElementById("fontSize"),
   brandSubtitle: document.getElementById("brandSubtitle"),
+  performanceWarning: document.getElementById("performanceWarning"),
+  closeWarningBtn: document.getElementById("closeWarningBtn"),
 };
 
 function setupTabs() {
@@ -775,6 +777,14 @@ function handleError(err) {
   addLocalLine("sys", `错误: ${message}`);
 }
 
+function initPerformanceWarning() {
+  if (!el.performanceWarning || !el.closeWarningBtn) return;
+
+  el.closeWarningBtn.addEventListener("click", () => {
+    el.performanceWarning.classList.add("hidden");
+  });
+}
+
 function initBrandSubtitle() {
   if (!el.brandSubtitle) return;
   if (window.localStorage) {
@@ -804,6 +814,7 @@ async function init() {
   applySettings(state.settings);
   setupTabs();
   bindEvents();
+  initPerformanceWarning();
   initBrandSubtitle();
   await Promise.all([checkHealth(), refreshPorts(), refreshSerialStatus(), loadCards(), loadPresets()]);
   await refreshCardRuntime();
